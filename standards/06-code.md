@@ -58,12 +58,13 @@ facade is the adapter's only export for writes.
 
 ### CD-7 (SHOULD) A hidden character in source is written as an escape, and a test fails on a literal one.
 No-break spaces, zero-width characters, bidirectional controls and line or paragraph separators
-appear in source only as escapes (` `). Where text needs one, build it or write the escape.
+appear in source only as escapes (`\u00a0`). Where text needs one, build it or write the escape.
 
 **Why:** an agent's edits travel as JSON, which decodes `\uXXXX` before the text reaches the file.
-` ` typed into an edit lands as a literal no-break space, invisible in review; ` ` in a regular
-expression lands as a line terminator, a syntax error. Lint rules for irregular whitespace
-typically skip string and regex literals, which is exactly where these land.
+`\u00a0` typed into an edit lands as a literal no-break space, invisible in review; `\u2028` in a
+regular expression lands as a line terminator, a syntax error. ESLint's `no-irregular-whitespace`
+skips string literals by default, which is where most of these land, and a line terminator inside a
+regex is a parse error before any rule runs.
 
 **Enforced by:** Engineer — a test that scans the repository's source for literal hidden
 characters, and a script that rewrites them as escapes.

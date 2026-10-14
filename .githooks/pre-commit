@@ -9,6 +9,7 @@
 # - a reference to a rule ID that no chapter defines, and a rule heading that does not end in "."
 #   or ")" (the trace a wrapped heading leaves);
 # - finding no rule IDs at all, which means the check is broken;
+# - a literal hidden character (no-break space, zero-width, bidirectional control, line separator);
 # - any word listed in .git/info/forbidden-words (one per line, case-insensitive), a local list of
 #   names that must never appear in this public repository. The list itself is never committed.
 import pathlib
@@ -96,6 +97,16 @@ for path, text in docs.items():
         for rule in ID_REF.findall(line):
             if rule.split("-")[0] in PREFIXES and rule not in defined:
                 problems.append(f"{path}:{n}: refers to {rule}, which no chapter defines")
+
+# Hidden characters (CD-7): invisible in review, so they appear only as escapes.
+HIDDEN = re.compile("[\u00a0\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060\u2066-\u2069\ufeff]")
+# split("\n"), not splitlines(): splitlines() breaks at U+2028 and would hide the very character.
+tracked = [p for p in git("ls-files", "-z", "--cached").split("\0") if p]
+for path in tracked:
+    for n, line in enumerate(staged_text(path).split("\n"), 1):
+        m = HIDDEN.search(line)
+        if m:
+            problems.append(f"{path}:{n}: literal hidden character U+{ord(m.group()):04X}")
 
 # Forbidden names, over every staged file's full content and the commit's paths.
 forbidden_file = pathlib.Path(git("rev-parse", "--git-path", "info/forbidden-words").strip())
