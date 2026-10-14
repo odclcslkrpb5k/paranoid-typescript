@@ -51,7 +51,8 @@ bugs. Five plain-number keys survived a branding conversion inside `Object.assig
 `Object.assign`), Engineer for the enumeration — a script lists every hit on the lines a change
 adds — and Administer for the judgement, in review (SH-3). To inventory a whole codebase rather
 than one change, diff against git's empty tree (`git hash-object -t tree /dev/null` prints its id),
-so every line counts as added.
+so every line counts as added. No practical Engineer control for the judgement: whether a coercion
+is justified needs the meaning of the source type and the intent of the code.
 
 ### BD-3 (MUST NOT) Use `as unknown as`. Make the honest type and delete the cast.
 
@@ -105,7 +106,9 @@ and on a write that is a real change to the wrong record. Where every query carr
 mixing ids up is a permission defect.
 
 **Enforced by:** Engineer — the compiler refuses one brand where another belongs; a type-level test
-proves it does. Administer that a consumer uses the owner's brand rather than its own.
+proves it does. Administer that a consumer uses the owner's brand rather than its own. Missing
+Engineer control: `no-restricted-syntax` refusing a type with a `__brand` member outside the
+project's own brand module, so another system's brand can only be imported.
 
 **Prior art:** newtypes (Haskell, Rust); branded types are the common TypeScript idiom for them.
 
@@ -132,6 +135,8 @@ imported, not reimplemented per file.
 **Why:** each private copy is another chance to forget `null` or arrays.
 
 **Enforced by:** Administer. A schema library (see the open questions) makes it mostly unnecessary.
+Missing Engineer control: `no-restricted-syntax` refusing `typeof x === "object"` outside the
+helper's module.
 
 ## Open questions
 

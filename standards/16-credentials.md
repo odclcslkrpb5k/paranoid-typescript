@@ -19,18 +19,28 @@ switching; revoke the old only once it has gone unused while the new one is in u
 
 **Why:** revoking on the new credential's first use cuts off a release that then rolls back.
 
-**Enforced by:** Administer; the release's check from inside the image is Engineer.
+**Enforced by:** Administer; the release's check from inside the image is Engineer. Missing
+Engineer control: a revoke step that refuses while the service's logs show the old credential used
+since the new one was first used.
 
 ### CR-3 (MUST) A credential failure is reported as one, never as "service unavailable".
 Distinguish an unreadable key (a mount or ownership problem), a refused key (an enrollment problem)
 and an unreachable service. Exit at startup on the first two; carry on through the third.
+
+**Why:** an operator told "service unavailable" waits for an outage to end, while an unreadable or
+refused key never recovers by itself. Exiting at startup on those two lets the release that brought
+them undo itself (DE-4).
 
 **Enforced by:** Engineer — distinct error kinds in the client (RP-5), with tests.
 
 ### CR-4 (MUST) Grant the least: read scope where reading is enough, and exactly the routes the code calls.
 The consuming repository's README lists the routes; its code is the evidence.
 
-**Enforced by:** Administer.
+**Why:** a credential with more scope than its code uses turns a leak or a bug into access to
+everything the credential reaches, not only what the service does.
+
+**Enforced by:** Administer. Missing Engineer control: a contract test that derives the routes the
+code calls and compares them, both ways, with the README's list and the credential's grant.
 
 ### CR-5 (MUST) Until a credential can be a key, write down when it expires and how to renew it.
 
@@ -64,4 +74,5 @@ enrolls or rotates a key by itself for an outside party.
 **Why:** a public key is not secret, but it has to be theirs: one swapped in transit would be
 enrolled as them.
 
-**Enforced by:** Administer.
+**Enforced by:** Administer. No practical Engineer control: the read-back on a second channel is
+the check, and it needs a person at each end.

@@ -9,6 +9,8 @@
 # - a reference to a rule ID that no chapter defines, and a rule heading that does not end in "."
 #   or ")" (the trace a wrapped heading leaves);
 # - finding no rule IDs at all, which means the check is broken;
+# - a live rule with no Why or Enforced by, or an Administer rule naming no missing Engineer
+#   control;
 # - a literal hidden character (no-break space, zero-width, bidirectional control, line separator);
 # - any word listed in .git/info/forbidden-words (one per line, case-insensitive), a local list of
 #   names that must never appear in this public repository. The list itself is never committed.
@@ -97,6 +99,29 @@ for path, text in docs.items():
         for rule in ID_REF.findall(line):
             if rule.split("-")[0] in PREFIXES and rule not in defined:
                 problems.append(f"{path}:{n}: refers to {rule}, which no chapter defines")
+
+# Rule format (CLAUDE.md): every live rule has a Why and an Enforced by, and an Enforced by that
+# leans on Administer names the Engineer control that is missing, or says none is practical.
+for path, text in docs.items():
+    if not path.startswith("standards/"):
+        continue
+    parts = re.split(r"^(?=### [A-Z]{2}-[0-9]+ )", text, flags=re.M)
+    for part in parts:
+        head = ID_DEF.match(part)
+        if head is None or "(RETIRED" in part.split("\n", 1)[0]:
+            continue
+        rule = head.group(1)
+        body = part.split("\n## ", 1)[0]
+        if "**Why" not in body:
+            problems.append(f"{path}: {rule} has no **Why:**")
+        enforced = body.split("**Enforced by:**", 1)
+        if len(enforced) < 2:
+            problems.append(f"{path}: {rule} has no **Enforced by:**")
+            continue
+        clause = enforced[1].split("\n\n", 1)[0]
+        named = re.search(r"(Missing|No\s+practical)\s+Engineer\s+control", clause)
+        if "Administer" in clause and not named:
+            problems.append(f"{path}: {rule} is Administer but names no missing Engineer control")
 
 # Hidden characters (CD-7): invisible in review, so they appear only as escapes.
 HIDDEN = re.compile("[\u00a0\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060\u2066-\u2069\ufeff]")

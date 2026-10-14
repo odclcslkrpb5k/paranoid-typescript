@@ -13,7 +13,8 @@ Test data uses obviously synthetic values.
 fixtures.
 
 **Enforced by:** Engineer for secrets (SH-12); Administer for personal data, which patterns do not
-find.
+find. No practical Engineer control for personal data: telling a real value from a synthetic one
+needs knowing where it came from, and SH-12's digests catch only values already known.
 
 ### DP-2 (MUST) Secrets reach a server from a person, not through an agent session.
 Whoever issues a token or key hands it to a person, who writes it into the server's configuration
@@ -22,7 +23,8 @@ variable names and never reads, prints or relays a secret's value.
 
 **Why:** a session's transcript is not a secret store (AG-9).
 
-**Enforced by:** Administer.
+**Enforced by:** Administer. Missing Engineer control: a pre-tool-use hook refusing agent commands
+that read `.env` files or print secret variables (AG-9).
 
 ### DP-3 (MUST NOT) Put sensitive data in a log line, an error message or an alert.
 Log keys, routes, operation names and codes. An error names the route, not the path; the code, not
@@ -36,16 +38,26 @@ right to it. URLs carried account numbers into one service's error messages.
 
 **Enforced by:** Engineer, partly: ER-1's error type is built from the program's own words, so an
 error value cannot carry outside text unless someone puts it there. Administer for the rest.
+Missing Engineer control: a lint rule refusing a log, error or alert call whose arguments include a
+response body, a URL's path or query, or a caught error's `message`.
 
 ### DP-4 (MUST) Read only the lines of a configuration file you need.
 Status scripts, deploy scripts and diagnostics check for a variable's presence or read a non-secret
 one (a URL, a mode); they never dump the file.
 
-**Enforced by:** Administer.
+**Why:** a configuration file keeps its secrets beside its settings, so a script that dumps it
+prints every secret to a terminal, a log or an agent's transcript (AG-9).
+
+**Enforced by:** Administer. Missing Engineer control: a check over the status and deploy scripts
+refusing `cat`, `source` or a whole-file read of an environment file.
 
 ### DP-5 (SHOULD) Send a notification the least data that identifies its subject.
 
-**Enforced by:** Administer.
+**Why:** a notification is copied to phones, mail and chat services the data's own store never
+reaches, and whatever it carries stays there.
+
+**Enforced by:** Administer. Missing Engineer control: a test that each notification's fields come
+from an allowed list of keys and codes, with no free text.
 
 ### DP-6 (MUST) A credential goes in a header or a body; where one must travel in a URL, nothing that logs the URL keeps it.
 Some cannot move: a browser's `EventSource` cannot set a header, an identity provider returns a

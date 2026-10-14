@@ -16,7 +16,12 @@ The detailed rules in this chapter are then requirements on that tool and the te
 Passing checks, an approved plan or "looks good" are not authorization. Where a person grants
 standing permission to push, the project's agent instructions record it.
 
-**Enforced by:** Administer — the ship skill or instructions.
+**Why:** passing checks and an approved plan say the work looks right, not that the person wants it
+shipped now. A permission read as standing quietly covers changes the person never saw.
+
+**Enforced by:** Administer — the ship skill or instructions. Missing Engineer control: the agent
+harness's permission settings ask the person before every `git commit` and `git push`, unless
+standing permission is recorded.
 
 ### SH-2 (MUST) The cycle is: test, review, harvest, commit and push, learn.
 Time each step and report the timings. Review is the costly step and the least worth repeating:
@@ -25,7 +30,12 @@ unless a fix restructures control flow, touches authentication or credentials, o
 or deploy script; then review that fix's delta alone. A rehearsal of a release script's affected
 paths (DE-9) may stand in for that review.
 
+**Why:** each step catches what the others miss, and a skipped step leaves no trace in the result.
+A second full review after small fixes repeats the costliest step for the least return.
+
 **Enforced by:** Administer — the ship skill. Engineer for the order of the final steps (SH-10).
+Missing Engineer control: the ship tool records each step and refuses to commit until test, review
+and harvest are recorded for the tree.
 
 ### SH-3 (MUST NOT) Ship unreviewed code.
 Review has two parts every time: the coercion pass (BD-2), then a review agent given the whole
@@ -36,7 +46,8 @@ a reason — never dropped silently. Real but out-of-scope findings go to the no
 **Why:** self-review misses what the author assumed. Nearly every ship's review has found at least
 one real defect.
 
-**Enforced by:** Administer — the ship skill.
+**Enforced by:** Administer — the ship skill. Missing Engineer control: the ship tool refuses to
+commit a tree without a review record for its diff that lists each finding as fixed or disputed.
 
 ### SH-4 (SHOULD) Review with several agents, on different models, each with its own brief.
 Three briefs matter: housekeeping (the comment rules, prose, debris); correctness (bugs first, each
@@ -49,12 +60,18 @@ measure rather than pick one.
 clock refusal and the coherence review found a guide claiming every response was JSON; neither
 found the other's.
 
-**Enforced by:** Administer — the ship skill.
+**Enforced by:** Administer — the ship skill. Missing Engineer control: the ship tool records which
+briefs and models reviewed the diff and refuses fewer than the three briefs.
 
 ### SH-5 (MUST) Harvest before committing: decide, every ship, what goes into the notes (RP-3).
 "Nothing durable this ship" is a valid outcome if it is a decision, not a skipped step.
 
-**Enforced by:** Administer; Engineer where the ship tool records the decision.
+**Why:** a harvest left to memory is skipped when a ship is rushed, and what the session learned is
+lost with it. A decision made every time makes a skipped step visible.
+
+**Enforced by:** Administer; Engineer where the ship tool records the decision. Missing Engineer
+control, where the ship tool does not yet record it: a required harvest argument to the commit
+step, either a notes diff or an explicit "nothing durable".
 
 ### SH-6 (MUST NOT) Force-push, rewrite pushed history, or skip hooks.
 
@@ -72,12 +89,17 @@ exercised. A service that cannot run end to end off its server is never reported
 **Why:** of the reporting rules, this is the one that most often separated a real result from a
 plausible one.
 
-**Enforced by:** Administer.
+**Enforced by:** Administer. Missing Engineer control: the ship tool prints the report's list of
+checks from the gate's record (SH-10), so it is not written from memory.
 
 ### SH-8 (MUST) The commit message carries the narration comments may not.
 Subject in the imperative; the body says why, what it enables and what it rules out.
 
-**Enforced by:** Administer.
+**Why:** the commit body is the one place narration stays true: it is fixed to the change it
+describes. Without it the reason for a change survives only in a session that has ended.
+
+**Enforced by:** Administer. Missing Engineer control: a commit-msg hook that refuses a message
+with no body; whether the body says why needs a reader.
 
 ### SH-9 (SHOULD) After the push, decide what the standard could learn from the ship.
 A trap any project could hit, a control that closes a gap in a rule, rule text the ship showed to
@@ -87,7 +109,8 @@ goes to whoever keeps the standard, with its evidence.
 **Why:** lessons reached the standard only when someone asked for them.
 
 **Enforced by:** Administer; Engineer where the ship tool refuses to start the next ship while the
-last one's decision is unrecorded.
+last one's decision is unrecorded. Missing Engineer control, where the ship tool lacks it: that
+refusal.
 
 ## The gate
 
@@ -215,5 +238,8 @@ were each met in a real script.
   so a step that reads stdin cannot swallow the rest of a `while read` loop.
 - A check typed into an agent's interactive shell is not the check a script runs: there `grep` may
   be an alias or function with other defaults (skipping binary files, obeying gitignore).
+
+**Why:** bash's defaults let a failed command pass silently and let the caller's environment change
+what a command means. A ship script run that way can report a check as passed that never ran.
 
 **Enforced by:** Engineer — each item has a test in the tool's suite, mutation-tested (TS-5).

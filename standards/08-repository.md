@@ -12,12 +12,17 @@ the code read but nothing used.
 
 **Enforced by:** Engineer, where built: a contract test derives the settings from the code, the
 compose files, the deploy scripts and the CI workflows, and fails on one undocumented or one
-documented that nothing reads. Administer elsewhere.
+documented that nothing reads. Administer elsewhere. Missing Engineer control, where it is not yet
+built: that contract test.
 
 ### RP-2 (MUST) `.env.example` names every environment variable the project reads.
 With a comment saying what each is, and a safe default where one exists. Never a real value.
 
-**Enforced by:** Engineer — the same contract test as RP-1.
+**Why:** a deployer setting up a new environment works from this file. A variable missing from it
+is one the next environment forgets to set, and a real value in it is a secret in version control.
+
+**Enforced by:** Engineer where RP-1's contract test is built, which covers this file too;
+Administer elsewhere. Missing Engineer control, where it is not built: that contract test.
 
 ### RP-3 (MUST) Durable context lives in one notes file.
 What was learned and cannot be read back from the code: dead ends, rejected alternatives, the full
@@ -28,7 +33,9 @@ Organized by topic, with dated entries. (`docs/notes.md` or similar; agents ofte
 **Why:** the comment rules (CD-1, CD-2) keep narration out of code; this is where it goes instead,
 so it is kept without rotting in the source.
 
-**Enforced by:** Administer — the ship cycle's harvest step (SH-5).
+**Enforced by:** Administer — the ship cycle's harvest step (SH-5). Missing Engineer control: the
+ship tool refuses to commit until the harvest decision is recorded (SH-5); what is worth keeping
+needs judgement.
 
 ### RP-4 (MUST) Vendored code is copied, never edited, with its provenance recorded.
 Code shared between your own repositories that is not published as a package is copied into
@@ -61,7 +68,8 @@ Each deviation with its reason. Link to rules; do not copy them.
 
 **Why:** copied rules drift.
 
-**Enforced by:** Administer.
+**Enforced by:** Administer. Missing Engineer control: a gate check that the agent instructions
+link this standard and name a commit that exists in it.
 
 ### RP-7 (SHOULD) Repositories share one top-level layout.
 `src/` (with `src/adapters/`, ER-3), `test/` (with `test/fakes/`), `vendor/`, `docs/`, `db/` where
@@ -71,4 +79,5 @@ the container files. A directory a project has no use for is absent.
 **Why:** an agent moving between repositories finds things where it expects them, and lint rules
 that name paths (ER-3) work unchanged.
 
-**Enforced by:** Administer.
+**Enforced by:** Administer. Missing Engineer control: a test that fails on a missing required path
+or an unexpected top-level directory, with the project's deliberate absences listed.

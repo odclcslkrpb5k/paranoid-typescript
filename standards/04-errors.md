@@ -100,7 +100,9 @@ never treats it as success.
 "never throws". Review found a bug would then leave no record and could never raise the alert.
 
 **Enforced by:** Engineer — the lint rule in ER-3 permits `catch` only in adapters and in functions
-with the catch-all suffix. Administer that each entry point has one.
+with the catch-all suffix. Administer that each entry point has one. Missing Engineer control: a
+test that lists the entry points (routes, queue loops, scheduled jobs) and fails on one whose call
+into a port is not inside a catch-all.
 
 ### ER-6 (MUST NOT) Turn a failure into success.
 No `catch` that neither records nor returns the failure; no unawaited promise (LN-4); no path that
@@ -110,7 +112,10 @@ record it and say so in the code.
 **Why:** of every defect class seen across the projects behind this standard, this one recurs most.
 
 **Enforced by:** Engineer for the promise half (LN-4) and the `catch` placement (ER-3); Administer
-for the rest, in review.
+for the rest, in review. Missing Engineer control: a lint rule refusing a `catch` block or
+rejection handler that neither returns a failure nor records one through the project's logger. No
+practical Engineer control for a path that marks failed work done: judging it needs to know what
+done means for that work.
 
 ### ER-7 (MUST NOT) Answer an impossible case with a default.
 A regex group the pattern requires is checked, and a missing one is a `panic()` or the function's
@@ -120,7 +125,9 @@ own "unparseable" result, never `?? 0`.
 a reader still trusts.
 
 **Enforced by:** Administer, in review. `noUncheckedIndexedAccess` (CP-1) forces the check; nothing
-forces its answer to be honest.
+forces its answer to be honest. Missing Engineer control: `no-restricted-syntax` refusing `??` or
+`||` with a literal right-hand side on an indexed read or a regex group, each exception justified
+in place.
 
 ### ER-8 (MUST) Branch on error codes, never on message text.
 Where another system offers only text, match it exactly, write down the dependency, and ask its
@@ -129,7 +136,9 @@ of the other side, is allowed and recorded.
 
 **Why:** messages get reworded; codes are a contract.
 
-**Enforced by:** Administer. SV-9 is the server side: a registry of codes, tested.
+**Enforced by:** Administer. SV-9 is the server side: a registry of codes, tested. Missing Engineer
+control: `no-restricted-syntax` refusing a comparison, `includes`, `startsWith` or regex test on an
+error's `message` property, with the recorded exceptions exempt by file.
 
 ### ER-9 (MUST) A process-level handler treats anything that reaches it as a bug.
 `uncaughtException` and `unhandledRejection` handlers report the error (by class, and a `Panic`'s
@@ -149,4 +158,6 @@ report exit code 143. Check the abort signal itself, or a timeout reads as a fai
 **Why:** every step of the conversion changed production behaviour somewhere; aborts were where it
 was least visible.
 
-**Enforced by:** Administer, in the conversion's review; a test per abort path.
+**Enforced by:** Administer, in the conversion's review; a test per abort path. Missing Engineer
+control: a test that fires the abort signal at each stage of a run in turn and asserts the run is
+never carried into the next stage or marked done.

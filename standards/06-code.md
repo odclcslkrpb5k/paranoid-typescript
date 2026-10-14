@@ -17,7 +17,8 @@ do.
 "now retries three times" reads, a year later, as if retrying were new.
 
 **Enforced by:** Engineer, partly: a checker for the unambiguous tells, run as an edit-time hook
-and in the check command (TC-5). Administer for the rest (CD-2).
+and in the check command (TC-5). Administer for the rest (CD-2). No practical Engineer control for
+it: telling a durable trade-off from history needs the comment read against the code.
 
 ### CD-2 (MUST) Every comment passes the survival test.
 Would it still be true and useful to someone reading the file in a year, who never saw the diff? If
@@ -33,14 +34,17 @@ instruction. The comments worth keeping carry what the code cannot: why it is th
 lines holding a comment marker). Administer for the judgement: re-read each listed line before
 committing; each one must pass on its own, and deleting is always acceptable. "It is only one line"
 and "this one is genuinely useful" are not exemptions; the second is the thought that precedes
-every violation.
+every violation. No practical Engineer control for the judgement: whether a comment will still be
+true and useful in a year needs a reader.
 
 ### CD-3 (MUST) When a change makes a comment false, delete it rather than rewrite it into a new narrative.
 
 **Why:** a rewritten comment tends to carry the old story forward ("no longer does X"); a deleted
 one cannot.
 
-**Enforced by:** Administer, in review. The listing in CD-2 shows edited comment lines too.
+**Enforced by:** Administer, in review. The listing in CD-2 shows edited comment lines too. No
+practical Engineer control: telling a rewrite that narrates from one that states the present needs
+a reader; CD-1's checker catches the plain tells.
 
 ### CD-4 (RETIRED 2026-10-14: folded into CD-2's Enforced by, which it restated.)
 
@@ -51,7 +55,8 @@ one cannot.
 **Why:** a read that fails after a write leaves a record half changed.
 
 **Enforced by:** Administer, in review. Where the reads and writes go through facades (CD-6), a
-test double can assert the order.
+test double can assert the order. Missing Engineer control: a test double behind the facades that
+records reads and writes in order and fails when a decision reads after its first write.
 
 ### CD-6 (MUST) Every write to an outside system goes through one facade per system.
 

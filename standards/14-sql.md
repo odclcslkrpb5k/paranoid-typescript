@@ -28,7 +28,8 @@ schema's 41 findings were its unlabelled raiser, emitted by a generator no revie
 before the branch meant to guard it.
 
 **Enforced by:** Engineer, partly (`plpgsql_check` sees a `stable` function calling a `volatile`
-one). Missing: a catalog test that every `volatile` function is on an explicit list of writers.
+one). Missing Engineer control: a catalog test that every `volatile` function is on an explicit
+list of writers.
 
 ### SQ-3 (SHOULD) Write `language sql` where the error contract allows, and `language plpgsql` where it must.
 
@@ -36,7 +37,8 @@ one). Missing: a catalog test that every `volatile` function is on an explicit l
 free. Know the ratio: a contract of raising typed errors forces plpgsql on most functions, which is
 why SQ-1 matters most where plpgsql dominates.
 
-**Enforced by:** Administer.
+**Enforced by:** Administer. No practical Engineer control: whether the error contract allows
+`language sql` needs reading what the function must raise.
 
 ### SQ-4 (SHOULD) Prefer `returns table (...)` to `returns json`; a function that returns JSON has exact key-set tests.
 At every level, for every array element, against a fixture made non-empty on purpose, with the
@@ -47,7 +49,9 @@ says so.
 nothing checks. A `json_agg` without `coalesce` returned `null`, and a shape test over an empty
 table had been passing vacuously.
 
-**Enforced by:** Engineer for `returns table`; Administer for the key-set tests.
+**Enforced by:** Engineer for `returns table`; Administer for the key-set tests. Missing Engineer
+control: a catalog test that lists every function returning `json` or `jsonb` and fails on one with
+no key-set test registered for it.
 
 ### SQ-5 (SHOULD) Validate caller input before casting it in SQL, and never cast a raw parameter to a date or time.
 
@@ -55,7 +59,9 @@ table had been passing vacuously.
 `'now'::timestamptz` is valid, as are `yesterday` and `infinity`, each silently meaning something.
 
 **Enforced by:** Engineer for the enumeration (BD-2's script lists casts in `.sql` files and SQL
-string literals); Administer for the judgement.
+string literals); Administer for the judgement. Missing Engineer control: a check refusing a cast
+of a parameter to a date or time type in `.sql` files; whether other casts follow validation needs
+a reader.
 
 ### SQ-6 (SHOULD) Test every boolean function with a null argument, and every CHECK meant to forbid a state with the column null.
 
@@ -63,8 +69,8 @@ string literals); Administer for the judgement.
 subquery; `not NULL` is `NULL`, the guard branch was not taken, and an authorization check failed
 open. A CHECK passes on `NULL`. No type system sees either.
 
-**Enforced by:** Administer. Missing: a catalog test that every `returns boolean` function has a
-null-argument case.
+**Enforced by:** Administer. Missing Engineer control: a catalog test that every `returns boolean`
+function has a null-argument case.
 
 ### SQ-7 (SHOULD) Repeatable functions live in their own schema and are rebuilt as one set.
 `db/functions/NN-description.sql`, applied in one transaction that drops and recreates the schema
@@ -88,4 +94,5 @@ volume from the old minor.
 **Why:** extensions are built against the newest minor and may not load on an older one. "Minor
 upgrades are just a restart" is a statement about the data format only.
 
-**Enforced by:** Administer.
+**Enforced by:** Administer. Missing Engineer control: a CI check that fails when the pinned minor
+falls behind the newest published; reading the release notes needs a person.

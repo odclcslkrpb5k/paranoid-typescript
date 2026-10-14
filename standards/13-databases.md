@@ -82,4 +82,5 @@ written.
 
 **Why:** the reader cannot tell a missed row from a row that does not exist.
 
-**Enforced by:** Administer.
+**Enforced by:** Administer. Missing Engineer control: a test that commits two writers out of id
+order and asserts a resuming reader sees both.

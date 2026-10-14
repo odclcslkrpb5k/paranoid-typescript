@@ -48,7 +48,12 @@ test for a leaked handle out of the box (check your version: runners add diagnos
 
 ### TS-4 (MUST) A change in behaviour comes with a test that fails without it.
 
+**Why:** a change with no test that fails without it can be undone by the next change and nothing
+goes red; a test that passes either way proves nothing about the change.
+
 **Enforced by:** Administer — a finding in review (SH-3) when missing. TS-5 checks it was true.
+Missing Engineer control: the gate runs the new and changed tests against the base commit's source
+and refuses unless at least one fails there.
 
 ### TS-5 (SHOULD) Mutation-test every regression test written for a review finding, and every test of a guard or checker.
 Put the bug back, watch the test fail, take it out again. A tool does it, not a hand edit, and the
@@ -74,7 +79,8 @@ regression tests passed with their bug reinstated. Restoring from git once disca
 uncommitted fixes; a basename-keyed copy restored one file over another.
 
 **Enforced by:** Engineer for the mechanics (the tool); Administer that it is run, in the ship
-cycle.
+cycle. Missing Engineer control: the ship tool refuses to commit a new regression or checker test
+without a mutation record for it.
 
 **Prior art:** mutation testing (PIT, Stryker), applied selectively, to the tests that matter most,
 rather than across the whole codebase.
@@ -87,7 +93,9 @@ count goes after the assertions it protects. A gate that finds no tests to run f
 **Why:** zero findings over zero subjects is the same green as zero findings over all of them. A
 floor passed twice while three of four statements went unchecked.
 
-**Enforced by:** Administer, in review.
+**Enforced by:** Administer, in review. Missing Engineer control: a lint rule refusing `.find(`
+where a check selects its subjects, and a test runner setting that fails a run selecting no tests;
+whether the claimed set is the right one needs review.
 
 ### TS-7 (MUST) Something fails when two files that have to agree stop agreeing.
 Production permissions against the paths the container mounts; the environment variables the code
@@ -118,7 +126,8 @@ a body and then fail is built in the stream's `pull()`; erroring in `start()` de
 **Why:** a fake of the transport leaves the transport untested. A renamed header, a dropped timeout
 and a widened URL pattern all passed until the client had a loopback test.
 
-**Enforced by:** Administer, in review.
+**Enforced by:** Administer, in review. Missing Engineer control: a test that fails when an adapter
+calling `fetch` has no test that starts a loopback server.
 
 ### TS-10 (SHOULD) The suite reports no skipped tests.
 A test that cannot run where the suite runs — it needs git, a browser, a tool the test image lacks
@@ -174,7 +183,8 @@ assert what a reader would misread: a label broken across lines, a value cut to 
 **Why:** a test browser's window is wider than an operator's monitor; a status tile cut `false` to
 `fa…`, and the test written for it passed until it pinned the tile to its minimum width.
 
-**Enforced by:** Administer, in review.
+**Enforced by:** Administer, in review. No practical Engineer control: the narrowest size a layout
+permits is a fact of its design, which no generic check knows.
 
 ### TS-15 (SHOULD) A test that proves one cause fails a check runs with only that cause present.
 When a shared fixture gains a new way to fail, each older "this cause makes the check fail" test
@@ -182,7 +192,8 @@ removes every other cause from its copy of the fixture.
 
 **Why:** otherwise the older test passes because of the new cause, and no longer tests its own.
 
-**Enforced by:** Administer, in review.
+**Enforced by:** Administer, in review. Missing Engineer control: a fixture builder that makes a
+clean fixture plus exactly one named cause, so a cause's test cannot inherit the others.
 
 ## Open questions
 

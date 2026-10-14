@@ -76,7 +76,8 @@ found they had to cover it with tests and mutation testing, which is weaker.
 its own type (`eslint-plugin-neverthrow`, `must-use-result`); a project with its own `Result` type
 writes a small typed rule, tested and mutation-tested (LN-9). Until then, Administer. On an
 existing codebase, turn the rule on at step 2 of the path (AD-4) with an empty baseline: it costs
-nothing until `Result` arrives at step 4, and then holds every new use from the start.
+nothing until `Result` arrives at step 4, and then holds every new use from the start. Missing
+Engineer control: the typed `must-use-result` rule for the project's own `Result` described above.
 
 **Prior art:** Rust's `#[must_use]`.
 

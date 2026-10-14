@@ -81,7 +81,8 @@ of a service, not copies on two hosts.
 twice — on a system that cannot deduplicate (SV-14), permanently.
 
 **Enforced by:** Engineer for a deploy that stops the old container before starting the new;
-Administer between hosts and during a cut-over.
+Administer between hosts and during a cut-over. Missing Engineer control: a lock on the queue that
+a consumer takes at startup, refusing to start while another holds it.
 
 ### SV-8 (MUST) Consumers that share a queue claim each item under a lease before working it.
 A lease is exclusive and expires: acquired with a conditional write that succeeds only when the
@@ -96,7 +97,8 @@ fencing cannot tell a live owner from one that woke after its lease ran out; a h
 no lock once a second host joins. A legacy fleet's record lock had none of the three.
 
 **Enforced by:** Engineer, where built: a test runs two consumers against one queue with a short
-lease and asserts no item is worked twice. Administer until then.
+lease and asserts no item is worked twice. Administer until then. Missing Engineer control, until
+built: that test.
 
 **Prior art:** Martin Kleppmann, "How to do distributed locking" (2016).
 
@@ -138,6 +140,10 @@ acknowledgement and notification. An alert belongs to the program, not one proce
 process clears, on its next success, an alert an earlier one raised. Its subject names a record by
 surrogate key, never by personal data (DP-3).
 
+**Why:** an alert that is never cleared leaves the operator guessing whether the problem is over,
+and one owned by a process stays raised after a restart, until the list of live alerts is mostly
+stale and nobody reads it.
+
 **Enforced by:** Engineer — the alerting client, with tests that a restart can clear.
 
 ### SV-12 (MUST) One incident is one alert, however many items it affects.
@@ -152,6 +158,8 @@ them to ignore alerts. One restarted process judged its queue from row counts al
 alert while the stuck item's newest change sat filtered out.
 
 **Enforced by:** Engineer for the completeness of a cycle (a test); Administer for the rest.
+Missing Engineer control: a test against the alerting client's fake that one cause failing many
+items raises one alert.
 
 **Prior art:** Google's SRE books on alert fatigue.
 
@@ -203,7 +211,9 @@ replace: send the whole record you read, changed in place, never a fragment buil
 
 **Why:** an update that omitted members cleared them in production.
 
-**Enforced by:** Administer. A client that only offers read-modify-write makes it Engineer.
+**Enforced by:** Administer. A client that only offers read-modify-write makes it Engineer. Missing
+Engineer control: that client, whose update takes only a record it returned from a read, so a
+fragment does not compile.
 
 ### SV-17 (MUST) A 404 means "no such record" only when its code says so.
 A missing version, a retired contract or a malformed path can also answer 404, and a 503 is "try
@@ -227,6 +237,8 @@ production carries production's users. This is the deliberate exception to TS-1.
 customer's record is a real change.
 
 **Enforced by:** Engineer, where the client's write guard keeps the ledger; Administer otherwise.
+Missing Engineer control, where the client has none: a write guard that keeps the ledger and
+refuses a write outside the designation or past the budget.
 
 ### SV-19 (SHOULD) Every property name read from or written to another system is checked against its schema.
 This complements BD-1 (which refuses a missing member only where the code parses it) and TS-11

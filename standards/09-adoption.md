@@ -48,7 +48,8 @@ whole project with and without each flag before turning it on.
 **Why:** on one codebase, turning on `strictNullChecks` added 362 `restrict-template-expressions`
 errors across 181 files, plus a few `no-unsafe-*`.
 
-**Enforced by:** Administer — the order of the path (AD-4).
+**Enforced by:** Administer — the order of the path (AD-4). Missing Engineer control: a gate check
+that refuses a change to the compiler options unless the same commit retakes the lint baseline.
 
 ### AD-4 (SHOULD) Follow the path in order, each step its own change, shipped and observed.
 0. **Runtime and tooling as they are.** If the codebase is changing runtime or toolchain, do that
@@ -75,7 +76,8 @@ that can be checked: the baseline entries it removes.
 **Why:** each step depends on the one before. The order was found by running it on production
 services.
 
-**Enforced by:** Administer — this rule.
+**Enforced by:** Administer — this rule. No practical Engineer control: the order is a plan across
+many changes, and observing each step in production needs a person.
 
 ### AD-5 (MUST) Every step of the path is reviewed, mutation-tested, and read against production before and after.
 Review each step with several briefs (SH-4); mutation-test every new test (TS-5); and take a
@@ -88,7 +90,9 @@ say so rather than claim "no change".
 to end a run now carries on, a timeout reads as a different error, a refused value ends an item
 differently. One service's "no change in shadow" turned out never to have been measured.
 
-**Enforced by:** Administer — the ship cycle.
+**Enforced by:** Administer — the ship cycle. Missing Engineer control: the ship tool refuses a
+step's commit without a mutation record for its new tests and a recorded before-and-after
+production reading; whether that reading compared anything needs a person.
 
 ### AD-6 (SHOULD) Measure before planning.
 Before starting, count: type assertions (excluding `as const`), `as unknown as`, `!`, `any` in a
@@ -102,4 +106,5 @@ has a number to move.
 Most source errors came from database rows typed as index signatures, which step 3 removes. Without
 the count, nobody would have guessed the tests were three quarters of the work.
 
-**Enforced by:** Administer.
+**Enforced by:** Administer. Missing Engineer control: a script that prints every count listed
+above, so taking them is one command.

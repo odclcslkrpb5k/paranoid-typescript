@@ -32,7 +32,12 @@ uncommitted file.
 file) and `/opt/<service>/.env` (the operator's, mode 600, DP-2). The release records the image tag
 in the `.env` and edits only the lines it owns.
 
-**Enforced by:** Administer.
+**Why:** a service whose files are spread across the host is operated from memory. One directory
+lets the release, an operator and a backup find all of it, and a release that edits only its own
+lines cannot overwrite the operator's settings.
+
+**Enforced by:** Administer. Missing Engineer control: the release script refuses a host whose
+service directory lacks the compose file or a `.env` of mode 600.
 
 ### DE-3 (MUST) The production compose file sets restart, grace, log rotation and refuses to pull.
 - `restart: unless-stopped`.
@@ -58,6 +63,10 @@ settings; for a host-wide log driver, the host bootstrap's check of `daemon.json
 ### DE-4 (MUST) A release checks the server first, validates configuration before touching the running service, watches the new container, and undoes itself if it does not stay up.
 Undoing restores the previous image, `.env` and compose file, and is watched the same way. With
 nothing to return to, the service is stopped rather than left crash-looping.
+
+**Why:** a release that touches the running service before checking the host and the configuration
+can take it down for a problem it could have found first. One that does not watch the new container
+reports success for a service that is crash-looping.
 
 **Enforced by:** Engineer — the release script, rehearsed (DE-9). Splitting it so the server half
 runs unchanged under the rehearsal keeps the rehearsal honest.
@@ -92,6 +101,10 @@ usually a command that ran after the step it depended on had failed (SH-11).
 ### DE-8 (MUST) Trust a new server's host key only after checking it against its provider.
 Never `StrictHostKeyChecking=no` or `accept-new`; a release script passes
 `StrictHostKeyChecking=yes` whatever the local configuration says.
+
+**Why:** the first connection to a host is the one a machine in the path can answer instead.
+`accept-new` trusts whichever host answers first, and a local configuration can switch checking off
+for a script that never asked.
 
 **Enforced by:** Engineer — the flag in the script.
 
@@ -129,6 +142,9 @@ root-equivalent, so the host's logins matter); one directory per service; nothin
 `sshd` unless a service needs a port; the clock synchronized (`timedatectl` reports it), because
 signed credentials are refused beyond a small clock skew (CR-6). Verify a Compose plugin with a
 real `up`/`ps`/`down` of a throwaway project: `docker compose config` never talks to the engine.
+
+**Why:** a host set up by hand differs from the others in ways nobody recorded, so a release that
+works on one fails on the next. A clock left to drift makes signed credentials fail (CR-6).
 
 **Enforced by:** Administer. Missing Engineer control: a bootstrap script that does all of this and
 verifies it.
