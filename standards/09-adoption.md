@@ -25,11 +25,17 @@ each when adopted early; on a codebase that grew without them they cost thousand
   change cannot raise the baseline and add the violation in one commit.
 - **New files are clean from their first commit**: the baseline covers only files that existed when
   it was taken.
+- **Key entries on rule, file and count, never on line positions**, which churn with every edit.
+- **Regenerate the baseline after each step of the path (AD-4)**, refusing any count that rises. A
+  step such as boundary parsing removes many entries at once (most `no-unsafe-*` findings are `any`
+  flowing in from unparsed data), and the baseline should record that.
 
 **Why:** turning everything on at once means thousands of errors; one change fixing them all would
 be unreviewable, and an agent "fixing" them in bulk tends to add casts.
 
-**Enforced by:** Engineer — both baselines in the gate.
+**Enforced by:** Engineer — both baselines in the gate. Known hole: within one file, a fixed
+violation can be traded for a new one of the same rule, leaving the count unchanged. Review covers
+that; no Engineer control for it is known.
 
 **Prior art:** ESLint bulk suppressions (ESLint 9.24); betterer; the general "ratchet" technique.
 

@@ -6,7 +6,9 @@
 #   and a lone unbreakable token such as a URL;
 # - a rule ID defined twice, or an ID defined at HEAD that is gone (IDs are permanent: retire,
 #   never delete);
-# - a reference to a rule ID that no chapter defines;
+# - a reference to a rule ID that no chapter defines, and a rule heading that does not end in "."
+#   or ")" (the trace a wrapped heading leaves);
+# - finding no rule IDs at all, which means the check is broken;
 # - any word listed in .git/info/forbidden-words (one per line, case-insensitive), a local list of
 #   names that must never appear in this public repository. The list itself is never committed.
 import pathlib
@@ -72,6 +74,12 @@ for path, text in docs.items():
         if rule in defined:
             problems.append(f"{rule} defined twice: {defined[rule]} and {path}")
         defined[rule] = path
+    for n, line in enumerate(text.splitlines(), 1):
+        if ID_DEF.match(line + " ") and not line.rstrip().endswith((".", ")")):
+            problems.append(f"{path}:{n}: a rule heading ends mid-sentence (a wrapped heading?)")
+
+if not defined:
+    problems.append("no rule IDs found: the check itself is broken, not the standard")
 
 has_head = subprocess.run(["git", "rev-parse", "--verify", "-q", "HEAD"],
                           capture_output=True).returncode == 0
