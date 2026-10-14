@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+# Checks the staged standard before a commit. Enable once per clone:
+#   git config core.hooksPath .githooks
+# Refuses:
+# - an added line of 100 characters or more, except headings, Markdown table rows
+#   and a lone unbreakable token such as a URL;
+# - a rule ID defined twice, or an ID defined at HEAD that is gone (IDs are permanent: retire,
+#   never delete);
+# - a reference to a rule ID that no chapter defines;
+# - any word listed in .git/info/forbidden-words (one per line, case-insensitive), a local list of
+#   names that must never appear in this public repository. The list itself is never committed.
+import pathlib
+import re
+import subprocess
+import sys
+
+LIMIT = 99
+ID_DEF = re.compile(r"^### ([A-Z]{2}-[0-9]+) ", re.M)
+ID_REF = re.compile(r"\b([A-Z]{2}-[0-9]+)\b")
+PREFIXES = {"TC", "CP", "LN", "ER", "BD", "CD", "TS", "RP", "AD", "SH", "DP", "SV", "DB", "SQ",
+            "DE", "CR", "AG"}
+
+
+def git(*args: str) -> str:
+    return subprocess.run(["git", *args], capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", check=True).stdout
+
+
+def staged_files() -> list[str]:
+    out = git("diff", "--cached", "--name-only", "-z", "--diff-filter=ACMR")
+    return [p for p in out.split("\0") if p]
+
+
+def staged_text(path: str) -> str:
+    return git("show", f":{path}")
+
+
+def tree_markdown(rev: str) -> dict[str, str]:
+    names = [p for p in git("ls-tree", "-r", "-z", "--name-only", rev).split("\0") if p]
+    return {p: git("show", f"{rev}:{p}") for p in names if p.endswith(".md")}
+
+
+def index_markdown() -> dict[str, str]:
+    names = [p for p in git("ls-files", "-z", "--cached").split("\0") if p]
+    return {p: staged_text(p) for p in names if p.endswith(".md")}
+
+
+problems: list[str] = []
+
+# Long lines, judged only on lines this commit adds.
+for path in staged_files():
+    diff = git("diff", "--cached", "--no-color", "--no-ext-diff", "-U0", "--text", "--", path)
+    number = 0
+    for line in diff.splitlines():
+        if line.startswith("@@"):
+            hunk = re.search(r"\+(\d+)", line)
+            number = int(hunk.group(1)) if hunk else 0
+        elif line.startswith("+") and not line.startswith("+++ "):
+            text = line[1:]
+            stripped = text.strip()
+            unbreakable = stripped != "" and not re.search(r"\s", stripped)
+            exempt = stripped.startswith(("|", "#")) or unbreakable
+            if len(text) > LIMIT and not exempt:
+                problems.append(f"{path}:{number}: {len(text)} characters (limit {LIMIT})")
+            number += 1
+
+# Rule IDs across the whole staged tree.
+docs = index_markdown()
+defined: dict[str, str] = {}
+for path, text in docs.items():
+    for rule in ID_DEF.findall(text):
+        if rule in defined:
+            problems.append(f"{rule} defined twice: {defined[rule]} and {path}")
+        defined[rule] = path
+
+has_head = subprocess.run(["git", "rev-parse", "--verify", "-q", "HEAD"],
+                          capture_output=True).returncode == 0
+if has_head:
+    for path, text in tree_markdown("HEAD").items():
+        for rule in ID_DEF.findall(text):
+            if rule not in defined:
+                problems.append(f"{rule} existed at HEAD ({path}) and is gone; retire it instead")
+
+for path, text in docs.items():
+    if path == "claude-notes.md":
+        continue
+    for n, line in enumerate(text.splitlines(), 1):
+        for rule in ID_REF.findall(line):
+            if rule.split("-")[0] in PREFIXES and rule not in defined:
+                problems.append(f"{path}:{n}: refers to {rule}, which no chapter defines")
+
+# Forbidden names, over every staged file's full content and the commit's paths.
+forbidden_file = pathlib.Path(git("rev-parse", "--git-path", "info/forbidden-words").strip())
+if forbidden_file.is_file():
+    words = [w.strip() for w in forbidden_file.read_text(encoding="utf-8").splitlines()]
+    pattern = [re.compile(re.escape(w), re.I) for w in words if w and not w.startswith("#")]
+    for path in staged_files():
+        content = path + "\n" + staged_text(path)
+        for n, line in enumerate(content.splitlines()):
+            for p in pattern:
+                if p.search(line):
+                    where = "its path" if n == 0 else f"line {n}"
+                    problems.append(f"{path}: {where} holds a forbidden name")
+else:
+    print("pre-commit: no .git/info/forbidden-words; the forbidden-names check did not run",
+          file=sys.stderr)
+
+if problems:
+    print("pre-commit: refused:", file=sys.stderr)
+    for p in problems:
+        print(f"  {p}", file=sys.stderr)
+    sys.exit(1)

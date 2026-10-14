@@ -1,0 +1,142 @@
+# 04 Errors
+
+Exceptions are invisible in a function's type. A caller cannot see what a function throws, the
+compiler cannot check that it was handled, and a `catch` receives `unknown`. This chapter makes
+expected failures part of the type, and confines exceptions to the two places they belong: foreign
+code, and bugs.
+
+### ER-1 (SHOULD) Expected failures are values: `Result<T, E>`.
+A function that can fail in a way its caller must handle returns a `Result`:
+
+    type Result<T, E> =
+      | { readonly ok: true; readonly value: T }
+      | { readonly ok: false; readonly error: E };
+
+`E` is a discriminated union built only from the program's own words — a kind, a status, a
+registered code, a member path — never a message or a value from outside. A failure can then be
+logged and recorded whole without leaking data (DP-3). Callers switch on `E` exhaustively (LN-3),
+so a new kind of failure is a compile error at every handler. Convert a codebase whole, not module
+by module: a seam where a `Result` is turned back into a `throw` loses its description.
+
+**Why:** this is the largest practical gain of the whole standard. Error records that kept only an
+exception's class name made a revoked credential, an outage, a schema change and a timeout look
+identical; typed failures recorded which. The first conversion found a timeout reported as bad JSON
+and 19 tests that passed on any error.
+
+**Enforced by:** Engineer — the compiler forces narrowing on `ok`; LN-3 forces exhaustive handling;
+LN-6 forces use; ER-2 to ER-4's lint rules confine `throw` and `catch`.
+
+**Prior art:** Rust's `Result`; neverthrow and Effect in TypeScript. Whether to use a library or a
+type of about thirty lines is open; projects so far have used their own, with a lint plugin.
+
+### ER-2 (MUST) `panic()` is the only `throw`, for what the types rule out.
+A broken invariant — a bug in this program, never a failure of something it depends on — calls
+`panic(message)`, which throws a `Panic`. The `default` of an exhaustive switch calls
+`unreachable(x: never)`, which panics. Nothing else throws, and `Promise.reject(...)` is a throw in
+every spelling (`Promise["reject"]`, `Promise?.reject`).
+
+**Why:** a `throw` that is not a bug is an expected failure hiding from the type system (ER-1).
+
+**Enforced by:** Engineer — `no-restricted-syntax` on `ThrowStatement` and on `Promise.reject`
+calls, with the panic module and the adapters (ER-3) exempt by file.
+
+**Prior art:** Rust's `panic!` and `unreachable!`.
+
+### ER-3 (MUST) Foreign code is met only in adapters.
+Every external package, every `node:` module and every SDK is imported only under `src/adapters/`.
+An adapter calls the foreign code, catches what it throws, and returns a `Result`.
+- **Classify by the foreign code's own marks** — its error class, a driver's error code, an errno —
+  and call anything else unexpected, never the system's failure: a bug in your own row reader must
+  not read as a database outage. An errno the runtime has no class for (`ENOSPC`, `EIO`) arrives as
+  a plain `Error` whose `code` is the errno; a check limited to `instanceof` calls a full disk
+  "unexpected".
+- **An adapter may throw where a framework needs it.** A database driver that rolls a transaction
+  back only when its callback throws; a scheduler that records a cycle as failed only when its
+  callback throws. There the adapter turns an error `Result` into a throw to get the behaviour, and
+  hands the `Result` back. Write it once, test it once. Without it, every failed cycle is recorded
+  as clean.
+- **`fetch()` resolving means only that the headers arrived.** Read the body inside the same catch
+  as the request, with the same timeout signal, or a connection dropped mid-body escapes the
+  adapter as a bare `TypeError`. A vendored client may wrap what `fetch` throws but not its body
+  reads; check.
+
+**Why:** libraries throw from wherever they are called, so they are called from one place.
+
+**Enforced by:** Engineer — `no-restricted-imports` allows foreign modules only under
+`src/adapters/`; `no-restricted-syntax` allows `catch`, `.catch(...)` and a `.then(...)` rejection
+handler only there and in ER-5's catch-alls. Test fakes that stand for foreign code live in
+`test/fakes/` and may throw and reject as the real thing does; they do not `panic()`, which claims
+a broken invariant.
+
+**Prior art:** ports and adapters (hexagonal architecture, Alistair Cockburn).
+
+### ER-4 (MUST) Built-ins that throw are called through wrappers that return a `Result`.
+`JSON.parse`, `new URL`, `BigInt(...)`, `decodeURIComponent`, `atob`, `structuredClone`,
+`Response.prototype.json` and their kind live in one small module of wrappers, each returning a
+`Result` (and, for parsing, taking a schema: BD-1).
+
+**Enforced by:** Engineer — `no-restricted-globals` and `no-restricted-properties` outside the
+wrapper module. The list is never complete; review adds to it when a new throwing built-in shows
+up.
+
+### ER-5 (MUST) Every entry point keeps a counted catch-all.
+"Returns a `Result`" does not mean "never throws": a bug, a `Panic`, or a throw from a library the
+adapter did not anticipate still arrives. Every caller of a port — a request handler, a queue loop,
+a scheduled job — catches what it does not expect in one function whose name says so (for example,
+a `*Net` suffix). It records the throw by class name, and a `Panic`'s message (the program's own
+words, and the only diagnosis of the invariant); counts it toward the run's failure budget or alert
+(SV-12); and never treats it as success.
+
+**Why:** the first draft of one conversion deleted every catch-all, reading "returns a `Result`" as
+"never throws". Review found a bug would then leave no record and could never raise the alert.
+
+**Enforced by:** Engineer — the lint rule in ER-3 permits `catch` only in adapters and in functions
+with the catch-all suffix. Administer that each entry point has one.
+
+### ER-6 (MUST NOT) Turn a failure into success.
+No `catch` that neither records nor returns the failure; no unawaited promise (LN-4); no path that
+marks work done after it failed. Where a failure is tolerated on purpose — a best-effort cleanup —
+record it and say so in the code.
+
+**Why:** of every defect class seen across the projects behind this standard, this one recurs most.
+
+**Enforced by:** Engineer for the promise half (LN-4) and the `catch` placement (ER-3); Administer
+for the rest, in review.
+
+### ER-7 (MUST NOT) Answer an impossible case with a default.
+A regex group the pattern requires is checked, and a missing one is a `panic()` or the function's
+own "unparseable" result, never `?? 0`.
+
+**Why:** a default turns the impossible into a wrong value that passes, and is often dead code that
+a reader still trusts.
+
+**Enforced by:** Administer, in review. `noUncheckedIndexedAccess` (CP-1) forces the check; nothing
+forces its answer to be honest.
+
+### ER-8 (MUST) Branch on error codes, never on message text.
+Where another system offers only text, match it exactly, write down the dependency, and ask its
+owner for a code. Checking the message as well as the code, to stay safe against an older version
+of the other side, is allowed and recorded.
+
+**Why:** messages get reworded; codes are a contract.
+
+**Enforced by:** Administer. SV-9 is the server side: a registry of codes, tested.
+
+### ER-9 (MUST) A process-level handler treats anything that reaches it as a bug.
+`uncaughtException` and `unhandledRejection` handlers report the error (by class, and a `Panic`'s
+message) and exit non-zero. They never resume.
+
+**Why:** a process that carries on after an unknown failure is in an unknown state.
+
+**Enforced by:** Engineer — the handlers, installed once at startup, with a test that one fires.
+
+### ER-10 (MUST) Converting to `Result`s audits every abort.
+Where a `throw` used to end a run, a returned failure does not: check every `throwIfAborted`, and
+every caller of a function that threw on abort, so a run cut short is never carried into the next
+stage or marked done. A subprocess API given an already-aborted signal may resolve with a signal
+exit code (143) rather than reject; check the signal, or a timeout reads as an exit code.
+
+**Why:** every step of the conversion changed production behaviour somewhere; aborts were where it
+was least visible.
+
+**Enforced by:** Administer, in the conversion's review; a test per abort path.
