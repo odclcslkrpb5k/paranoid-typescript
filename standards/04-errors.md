@@ -5,7 +5,7 @@ compiler cannot check that it was handled, and a `catch` receives `unknown`. Thi
 expected failures part of the type, and confines exceptions to the two places they belong: foreign
 code, and bugs.
 
-### ER-1 (SHOULD) Expected failures are values: `Result<T, E>`.
+### ER-1 (MUST) Expected failures are values: `Result<T, E>`.
 A function that can fail in a way its caller must handle returns a `Result`:
 
     type Result<T, E> =
@@ -44,7 +44,10 @@ calls, with the panic module and the adapters (ER-3) exempt by file.
 
 ### ER-3 (MUST) Foreign code is met only in adapters.
 Every external package, every `node:` module and every SDK is imported only under `src/adapters/`.
-An adapter calls the foreign code, catches what it throws, and returns a `Result`.
+The exceptions are listed by name in the lint configuration: libraries that never throw on their
+documented path (the schema library's non-throwing parse, the project's `Result` module), and the
+test runner and assertion library, in tests only. An adapter calls the foreign code, catches what
+it throws, and returns a `Result`.
 - **Classify by the foreign code's own marks** — its error class, a driver's error code, an errno —
   and call anything else unexpected, never the system's failure: a bug in your own row reader must
   not read as a database outage. An errno the runtime has no class for (`ENOSPC`, `EIO`) arrives as
@@ -60,7 +63,9 @@ An adapter calls the foreign code, catches what it throws, and returns a `Result
   adapter as a bare `TypeError`. A vendored client may wrap what `fetch` throws but not its body
   reads; check.
 
-**Why:** libraries throw from wherever they are called, so they are called from one place.
+**Why:** libraries throw from wherever they are called, so they are called from one place. That
+place is also the only one that knows the library's error marks, so it is the only place a failure
+can be classified honestly.
 
 **Enforced by:** Engineer — `no-restricted-imports` allows foreign modules only under
 `src/adapters/`; `no-restricted-syntax` allows `catch`, `.catch(...)` and a `.then(...)` rejection
@@ -75,6 +80,9 @@ a broken invariant.
 `Response.prototype.json` and their kind live in one small module of wrappers, each returning a
 `Result` (and, for parsing, taking a schema: BD-1).
 
+**Why:** `JSON.parse` throwing on a malformed body looks, at the call site, exactly like a line
+that cannot fail. A wrapper puts the failure in the type, where the caller must handle it.
+
 **Enforced by:** Engineer — `no-restricted-globals` and `no-restricted-properties` outside the
 wrapper module. The list is never complete; review adds to it when a new throwing built-in shows
 up.
@@ -82,10 +90,11 @@ up.
 ### ER-5 (MUST) Every entry point keeps a counted catch-all.
 "Returns a `Result`" does not mean "never throws": a bug, a `Panic`, or a throw from a library the
 adapter did not anticipate still arrives. Every caller of a port — a request handler, a queue loop,
-a scheduled job — catches what it does not expect in one function whose name says so (for example,
-a `*Net` suffix). It records the throw by class name, and a `Panic`'s message (the program's own
-words, and the only diagnosis of the invariant); counts it toward the run's failure budget or alert
-(SV-12); and never treats it as success.
+a scheduled job — catches what it does not expect in one function whose name says so, so lint can
+find it (for example a `Net` suffix, for "safety net": `handleRequestNet`). It records the throw by
+class name, and a `Panic`'s message (the program's own words, and the only diagnosis of the
+invariant); counts it toward the run's failure limit, raising or feeding an alert (SV-11); and
+never treats it as success.
 
 **Why:** the first draft of one conversion deleted every catch-all, reading "returns a `Result`" as
 "never throws". Review found a bug would then leave no record and could never raise the alert.
@@ -133,8 +142,9 @@ message) and exit non-zero. They never resume.
 ### ER-10 (MUST) Converting to `Result`s audits every abort.
 Where a `throw` used to end a run, a returned failure does not: check every `throwIfAborted`, and
 every caller of a function that threw on abort, so a run cut short is never carried into the next
-stage or marked done. A subprocess API given an already-aborted signal may resolve with a signal
-exit code (143) rather than reject; check the signal, or a timeout reads as an exit code.
+stage or marked done. A subprocess API may report an abort as an ordinary exit rather than an
+error: Node's `child_process` reports `signal: "SIGTERM"` with a null code, and shells and Deno
+report exit code 143. Check the abort signal itself, or a timeout reads as a failed command.
 
 **Why:** every step of the conversion changed production behaviour somewhere; aborts were where it
 was least visible.

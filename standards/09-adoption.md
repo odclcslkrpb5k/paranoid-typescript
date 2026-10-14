@@ -8,8 +8,10 @@ violations go down.
 Every setting in chapters 02 and 03 on, and chapter 04's structure in place, before the first
 feature.
 
-**Why:** measured across seven services, the compiler settings cost between none and six errors
-each when adopted early; on a codebase that grew without them they cost thousands.
+**Why:** the settings are nearly free on code written under them, and expensive on code that grew
+without them: seven services that already had tidy boundaries paid between none and six errors each
+for most of CP-1 (CP-1 gives the detail), while one agent-written codebase that grew under plain
+`strict` paid 2,349 (AD-6).
 
 **Enforced by:** Engineer — the settings themselves.
 
@@ -62,9 +64,9 @@ errors across 181 files, plus a few `no-unsafe-*`.
 5. **Branded identifiers** (BD-5). It touches everything that handles an id, so it follows the
    parse functions of step 3, which mint them.
 6. **Burn the baselines down to zero, tests included.** Remove `!` by machine: the linter's JSON
-   output gives each assertion's span; replace `x!` with `must(x)` innermost first, re-lint, and
-   repeat (fifty-six sites took three rounds). Done means both baseline files are empty and
-   deleted.
+   output gives each assertion's span; replace `x!` with `must(x, "what")` innermost first,
+   re-lint, and repeat (fifty-six sites took three rounds). Done means both baseline files are
+   empty and deleted.
 
 Steps 3 to 5, done well, replace each `!` with a real check and build test fixtures through typed
 helpers, so step 6 shrinks to a check rather than work. Each step is a unit of work with a count

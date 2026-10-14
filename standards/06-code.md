@@ -6,15 +6,18 @@ An agent explains itself, and left alone it explains in comments: what it change
 used to do, which bug this fixes. That is real context, but it expires the moment the change
 merges. The defect it describes no longer exists, so the comment becomes a story about a problem no
 future reader can observe: a changelog entry in the wrong file. The commit message is where it
-belongs (SH-8); the durable notes file (RP-3) takes the rest. `docs/` is exempt from CD-1 to CD-4.
+belongs (SH-8); the durable notes file (RP-3) takes the rest. `docs/` is exempt from CD-1 to CD-3.
 
 ### CD-1 (MUST NOT) Write a comment that narrates the diff: the code's history, a fix, a defect.
 Tells: "was", "now", "previously", "this fixes", "no longer", "used to be", "changed to". "X
 instead of Y" is fine when it states a present, durable trade-off rather than what the code used to
 do.
 
+**Why:** an agent writes these by default, and each one is true for a day and misleading after:
+"now retries three times" reads, a year later, as if retrying were new.
+
 **Enforced by:** Engineer, partly: a checker for the unambiguous tells, run as an edit-time hook
-and in the gate (SH-10). Administer for the rest (CD-2).
+and in the check command (TC-5). Administer for the rest (CD-2).
 
 ### CD-2 (MUST) Every comment passes the survival test.
 Would it still be true and useful to someone reading the file in a year, who never saw the diff? If
@@ -23,19 +26,23 @@ state a non-obvious *why*: an external constraint, a required manual step, an in
 cannot show. A paragraph belongs in `docs/`. Declarative configuration (compose files, CI YAML) is
 self-describing and takes none, unless it has such a constraint.
 
-**Enforced by:** Administer — re-read every comment line a change adds before committing; each one
-must pass on its own, and deleting is always acceptable. "It is only one line" and "this one is
-genuinely useful" are not exemptions; the second is the thought that precedes every violation.
+**Why:** a comment no one needs is still read by everyone, and an agent reads every one as
+instruction. The comments worth keeping carry what the code cannot: why it is this way.
+
+**Enforced by:** Engineer for the listing: a script lists every comment line a change adds (added
+lines holding a comment marker). Administer for the judgement: re-read each listed line before
+committing; each one must pass on its own, and deleting is always acceptable. "It is only one line"
+and "this one is genuinely useful" are not exemptions; the second is the thought that precedes
+every violation.
 
 ### CD-3 (MUST) When a change makes a comment false, delete it rather than rewrite it into a new narrative.
 
-**Enforced by:** Administer, in review.
+**Why:** a rewritten comment tends to carry the old story forward ("no longer does X"); a deleted
+one cannot.
 
-### CD-4 (SHOULD) Re-read the comments a change adds with a tool's help.
-List them before committing (`git diff --cached` filtered to added lines that hold a comment
-marker) and judge each against CD-2.
+**Enforced by:** Administer, in review. The listing in CD-2 shows edited comment lines too.
 
-**Enforced by:** Engineer for the listing; Administer for the judgement.
+### CD-4 (RETIRED 2026-10-14: folded into CD-2's Enforced by, which it restated.)
 
 ## Side effects
 

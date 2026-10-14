@@ -58,7 +58,12 @@ found the other's.
 
 ### SH-6 (MUST NOT) Force-push, rewrite pushed history, or skip hooks.
 
-**Enforced by:** Engineer — branch protection on the remote where it is available.
+**Why:** pushed history is what everyone else built on, and a skipped hook is a check that silently
+did not run.
+
+**Enforced by:** Engineer for force-pushes and history rewrites: branch protection on the remote,
+where available. Hooks cannot be made unskippable (`--no-verify`), so SH-10's gate re-runs every
+check a hook makes.
 
 ### SH-7 (MUST) Report what was checked, not "it works".
 Name the tests that ran, what was skipped and why, and which live systems were or were not
@@ -150,9 +155,10 @@ it). It scans the commit message too. Requirements the tool must meet:
 - Follow each hunk's line counts in a unified diff: an added line that reads `++ token` appears as
   `+++ token`, and one taken for a file header is never scanned. Better, take file names from `git
   diff --name-only -z` and diff each file alone, since git quotes or tab-suffixes unusual paths.
-- Diff with `--text` and grep with `-a`, under `LC_ALL=C`: after the first byte that is not UTF-8,
-  git prints "Binary files differ" and grep "binary file matches", and every line after it passes
-  unscanned while the gate reports clean.
+- Diff with `--text` and grep with `-a`, under `LC_ALL=C`. Without them, git shows a file it judges
+  binary (one with a NUL byte near its start) only as "Binary files differ", and GNU grep under a
+  UTF-8 locale, meeting a byte that is not valid UTF-8, prints "binary file matches" and suppresses
+  the matching lines. Either way the content passes unscanned while the gate reports clean.
 - Write a token's prefix rule as a lookbehind, not `\b`: no word boundary falls between `bot` and
   the digits of `bot<id>:<token>`, or after the `_` of `KEY_AKIA...`.
 - Keep placeholder rules case-sensitive: `[A-Z_]+` under the `i` flag matches every word, so a
@@ -188,17 +194,19 @@ were each met in a real script.
 
 ### SH-14 (SHOULD) Ship and deploy scripts run strict, isolated bash.
 - `#!/usr/bin/env -S bash -p` and `set -eEuo pipefail`. `-p` imports no exported functions and
-  reads no `BASH_ENV` (a function named `command` outranks the builtin). `-E` carries the `ERR`
-  trap into functions; without it, an error inside one exits with its own status, so a grep regex
-  error reads as 1, a finding.
+  reads no `BASH_ENV` or inherited `CDPATH` (a function named `command` outranks the builtin). `-E`
+  makes an `ERR` trap apply inside functions too; without it, a trap that reports or translates
+  failures never runs for an error in a function, and the script exits with whatever status that
+  command had, which its caller may read as a finding rather than a crash.
 - Under `set -e`, a command whose failure must stop the script never sits left of `&&` or `||`,
-  where bash exempts it: in `git read-tree HEAD && git add -A`, a failed `read-tree` is skipped and
-  a stale index hashed. Group the chain and end it with an explicit `die`.
+  where bash exempts it: in `git read-tree HEAD && git add -A`, a failed `read-tree` skips `git
+  add` and the script carries on to hash a stale index. Group the chain and end it with an explicit
+  `die`.
 - Under `pipefail`, read a log to its end (`grep >/dev/null`, not `grep -q`): `grep -q` quits at
   the first match, the writer upstream dies of SIGPIPE, and a real failure reads as something else.
-- `unset CDPATH`: with it set, `cd` may print the directory it chose, and `$(cd "$d" && pwd)`
-  returns two lines. Test by the relative path the ship uses, since `cd` ignores CDPATH for an
-  absolute one.
+- `unset CDPATH` as well, in case the script is ever run without `-p`: with it set, `cd` may print
+  the directory it chose, and `$(cd "$d" && pwd)` returns two lines. Test by the relative path the
+  ship uses, since `cd` ignores CDPATH for an absolute one.
 - Resolve paths physically (`cd -P`), and keep a command substitution's trailing newline when it
   matters (`pwd; printf x`): a directory name ending in a newline forged a ledger entry.
 - Change to the repository's top before using git pathspecs, which are relative to the working

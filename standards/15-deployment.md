@@ -42,8 +42,8 @@ in the `.env` and edits only the lines it owns.
 - Log rotation, either per service or once for the host (`{ "log-driver": "local" }` in
   `/etc/docker/daemon.json`, before the first container is created, so a compose file cannot forget
   it), sized to how long logs must be readable, not only to the disk.
-- Every `up` with `--pull never`, so a missing image fails rather than being looked up on a public
-  registry.
+- `pull_policy: never` on each service (or every `up` with `--pull never`), so a missing image
+  fails rather than being looked up on a public registry.
 - Bind mounts that must exist use the long syntax with `create_host_path: false`, so a missing file
   fails rather than becoming a root-owned directory.
 
@@ -51,8 +51,9 @@ in the `.env` and edits only the lines it owns.
 rotates, and a container that runs for months fills the disk. Rotation at 10 MB × 3 kept about a
 day of logs, and the first full day of a shadow comparison was gone before anyone read it.
 
-**Enforced by:** Engineer — a contract test over the production compose file; TS-7 for the grace
-period against the client's retry settings.
+**Enforced by:** Engineer — a contract test over the production compose file (which can see
+`pull_policy` but not a command-line flag); TS-7 for the grace period against the client's retry
+settings; for a host-wide log driver, the host bootstrap's check of `daemon.json` (DE-11).
 
 ### DE-4 (MUST) A release checks the server first, validates configuration before touching the running service, watches the new container, and undoes itself if it does not stay up.
 Undoing restores the previous image, `.env` and compose file, and is watched the same way. With
@@ -107,11 +108,12 @@ tried to pull from Docker Hub and left a broken image restarting.
 **Enforced by:** Engineer — a rehearsal script that runs every path in one command, required by the
 ship (SH-13) when deploy files change.
 
-### DE-10 (SHOULD) Narrow the runtime's permissions, and test them against what production mounts.
-(PROPOSED for Node) Run with the runtime's permission model where it has one (Node's `--permission`
-with `--allow-fs-read` and friends; Deno's `--allow-*`), granting the paths and hosts the service
-needs and nothing else, and test the production command's grants against the paths the compose file
-mounts (TS-7).
+### DE-10 (SHOULD) Narrow the runtime's permissions, and test them against what production mounts. (PROPOSED for Node)
+Run with the runtime's permission model where it has one, granting what the service needs and
+nothing else. Node's `--permission` governs the file system (`--allow-fs-read`,
+`--allow-fs-write`), child processes and workers, but network access only as all or nothing; Deno's
+`--allow-*` also grants network access per host. Grant what the model allows, and test the
+production command's grants against the paths the compose file mounts (TS-7).
 
 **Why:** a compromised or confused process can then reach only what it was meant to. The grant
 lists drift from the mounts unless something compares them.
@@ -125,8 +127,8 @@ Docker from the OS package, enabled at boot; the Compose plugin at the version t
 workstations use, its published checksum verified; a deploy user in the `docker` group (which is
 root-equivalent, so the host's logins matter); one directory per service; nothing listening but
 `sshd` unless a service needs a port; the clock synchronized (`timedatectl` reports it), because
-signed credentials (CR-1) are refused beyond a minute of drift. Verify a Compose plugin with a real
-`up`/`ps`/`down` of a throwaway project: `docker compose config` never talks to the engine.
+signed credentials are refused beyond a small clock skew (CR-6). Verify a Compose plugin with a
+real `up`/`ps`/`down` of a throwaway project: `docker compose config` never talks to the engine.
 
 **Enforced by:** Administer. Missing Engineer control: a bootstrap script that does all of this and
 verifies it.

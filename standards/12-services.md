@@ -49,8 +49,9 @@ longer than the longest unit (DE-3).
 
 ### SV-5 (MUST) Work that fails is left queued and retried with backoff; it is never marked done.
 Keep failing items out of the way of newer work, and raise an alert when one keeps failing. A
-refusal is not a failure to retry: a 4xx other than 429 is a verdict on the request, so do not send
-it again — but it is not done either; park it for a person and raise an alert.
+refusal is not a failure to retry: a 4xx is a verdict on the request, except the ones the API
+documents as transient (429 always; often 408, 423 and 425, and 409 in some APIs). Do not send a
+verdict again — but it is not done either; park it for a person and raise an alert.
 
 **Why:** a failure marked processed is a change the downstream system never receives; a failure
 retried at the head of a queue every cycle starves everything behind it. One service's malformed
@@ -206,11 +207,13 @@ replace: send the whole record you read, changed in place, never a fragment buil
 
 ### SV-17 (MUST) A 404 means "no such record" only when its code says so.
 A missing version, a retired contract or a malformed path can also answer 404, and a 503 is "try
-again later", never a verdict. A 200 with an empty list means nothing matched, not an error.
+again later", never a verdict. A 200 with an empty list means nothing matched, not an error. This
+is the caller's side of SV-9's registry, and an instance of ER-8.
 
 **Why:** a caller that treats any 404 as "deleted" deletes real data when a version is retired.
 
-**Enforced by:** Engineer — the client maps codes to distinct `Result` errors (ER-1).
+**Enforced by:** Engineer — the client maps each code to a distinct `Result` error (ER-1), with a
+test that a 404 carrying any other code is not read as "missing".
 
 ### SV-18 (MUST) Writes to a production system with no sandbox go only to records the owner designates, within a budget the owner states, and are put back.
 Read each record first and restore it after; stop at the budget whether or not calls succeeded. The
@@ -218,7 +221,7 @@ budget covers the whole designation, shared across runs in one ledger, and admit
 while what is left covers it and its cleanup. Judge a create by the parent its body names, and
 refuse every write type the owner has not named. Confirm which tenant the credentials reach by a
 record kept beside them: an API's "who am I" names the user, and a test tenant cloned from
-production carries production's users.
+production carries production's users. This is the deliberate exception to TS-1.
 
 **Why:** some systems have no test tenant for writes and bill every call; a write to a real
 customer's record is a real change.
@@ -226,6 +229,8 @@ customer's record is a real change.
 **Enforced by:** Engineer, where the client's write guard keeps the ledger; Administer otherwise.
 
 ### SV-19 (SHOULD) Every property name read from or written to another system is checked against its schema.
+This complements BD-1 (which refuses a missing member only where the code parses it) and TS-11
+(which holds fakes to what the service sends).
 
 **Why:** some APIs do not refuse an unknown property in a read; they leave it out, so a wrong name
 reads as empty forever. One importer read a field from the wrong object type; it had been empty in

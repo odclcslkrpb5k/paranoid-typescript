@@ -50,8 +50,12 @@ An agent's shell may define aliases or functions (a `grep` that skips binary fil
 gitignore) and persist the working directory between calls. A check proved in the interactive shell
 is proved there, not in the script that will run it.
 
-**Enforced by:** Engineer — run checks through the project's scripts, which set their own
-environment (SH-14).
+**Why:** a check that passed only because of the shell it ran in will fail, or worse pass wrongly,
+where it actually runs.
+
+**Enforced by:** Administer — run checks through the project's scripts, which set their own
+environment (SH-14). Missing Engineer control: the gate is the only thing that may record a check
+as passed (SH-10), so a hand-run check counts for nothing.
 
 ## Several agents
 

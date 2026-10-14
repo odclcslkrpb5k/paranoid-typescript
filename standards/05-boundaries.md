@@ -46,11 +46,12 @@ fix the type, the reader or the query. Survivors carry one line of justification
 **Why:** on the first pass over one codebase, 21 of 54 coercions were removable, and four hid real
 bugs. Five plain-number keys survived a branding conversion inside `Object.assign`.
 
-**Enforced by:** Engineer for most of the list (LN-2, LN-5, LN-8). For what lint cannot judge
-(`Number(`, `String(`, `parseInt`, SQL casts), Engineer for the enumeration — a script lists every
-hit on the lines a change adds — and Administer for the judgement, in review (SH-3). To inventory a
-whole codebase rather than one change, diff against git's empty tree
-(`4b825dc642cb6eb9a060e54bf8d69288fbee4904`), so every line counts as added.
+**Enforced by:** Engineer for `as`, `as unknown as`, `any`, `!` and `@ts-ignore` (LN-2), and for
+`!!` (LN-5). For what lint cannot judge (`Number(`, `String(`, `parseInt`, unary `+`, SQL casts,
+`Object.assign`), Engineer for the enumeration — a script lists every hit on the lines a change
+adds — and Administer for the judgement, in review (SH-3). To inventory a whole codebase rather
+than one change, diff against git's empty tree (`git hash-object -t tree /dev/null` prints its id),
+so every line counts as added.
 
 ### BD-3 (MUST NOT) Use `as unknown as`. Make the honest type and delete the cast.
 
@@ -62,8 +63,9 @@ whole codebase rather than one change, diff against git's empty tree
 `int8`/`bigint` columns, and 64-bit ids from any API, are `bigint`, or a branded string where the
 value is an identifier and arithmetic means nothing.
 
-**Why:** `number` is exact only to 2^53. Postgres drivers hand `int8` back as a string precisely
-because of this, and a `Number()` around it once rounded an id to a different record.
+**Why:** `number` is exact only to 2^53. The common Node Postgres drivers (node-postgres,
+postgres.js) hand `int8` back as a string precisely because of this, and a `Number()` around it
+once rounded an id to a different record.
 
 **Enforced by:** Engineer — the row schema (BD-1) types the column; DB-3 keeps key widths uniform.
 
@@ -71,20 +73,24 @@ because of this, and a `Number()` around it once rounded an id to a different re
 
     type OrderId = string & { readonly __brand: "OrderId" };
 
-- **Each brand has one constructor that validates**, and it is the only way to mint one; its single
-  `as` is the one cast the boundary allows (exempted by file, LN-2). Beside it, a non-throwing
-  companion (`parseOrderId(x): OrderId | null`) for code that returns `Result`s. A constructor's
+- **Each brand has one parse function that validates**, returning a `Result` (ER-1), and it is the
+  only way to mint one; its single `as` is the one cast the boundary allows (exempted by file,
+  LN-2). Refused input is an expected failure, not a bug, so the parse function never throws. Its
   error names the member and the kind of refusal, never the value.
 - **The owner of a system owns its brands.** A key from another system is that system's branded
-  type, exported by the client every consumer uses. A brand redeclared in each consumer does not
-  match across the client boundary. The string-literal `__brand` idiom is structural, so brands
-  from different owners compose.
+  type, exported by the client every consumer uses, and no consumer declares its own. A consumer's
+  copy either silently matches the owner's (a string-literal brand with the same literal is the
+  same type) or refuses it (a different literal, or a `unique symbol` brand); in both cases two
+  definitions drift, and in the second a key from the client cannot be passed where the consumer's
+  type is expected. Brands from different owners can be combined freely, because each names its own
+  literal.
 - **The client brands its own requests and responses**, so a key read from the remote system
   arrives branded and a key sent must be one. Make a key argument non-nullable where the remote
   system requires a key: a nullable one lets `fetch(parseOrderId(x))` compile and send a request
   for "no key", which one vendor's API read as key 0 — and billed.
-- **Mint from JSON after the shape check**, so a numeric key is a JSON number before its
-  constructor sees it; constructors that also accept text read `"7"` as key 7.
+- **Check the JSON type before minting.** A numeric key must be a JSON number when it reaches the
+  parse function: a parse function that also accepts text would read the string `"7"` as key 7,
+  hiding a sender that changed its format.
 - **Choose, then mint.** When choosing among candidates (the latest, the largest), choose among the
   raw values and mint the one chosen: filtering non-keys first silently promotes the next one.
 - **Report a present value that parses to null**, by member name. Otherwise a key that used to fail
@@ -114,8 +120,10 @@ assuming either.
 day and, across a zone, moves to another day. One shared database turned out to hold the same
 column in two zones depending on which process last wrote the row.
 
-**Enforced by:** Engineer — the brand (BD-5) keeps wall-clock text out of `Date`. Administer for
-knowing the zone.
+**Enforced by:** Administer: a string brand does not keep text out of `Date`, since `new
+Date(branded)` still compiles. Missing Engineer control: `no-restricted-syntax` refusing `new
+Date(...)` with an argument and `Date.parse` outside one time module, which takes the zone
+explicitly.
 
 ### BD-7 (SHOULD) Take the "is this a JSON object" test from one shared helper.
 `isRecord(value): value is Record<string, unknown>`, refusing arrays and `null`, defined once and

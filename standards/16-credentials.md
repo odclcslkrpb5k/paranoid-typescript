@@ -41,7 +41,8 @@ as an alert (SV-11) weeks ahead.
 
 ### CR-6 (MUST) A service that verifies signed assertions does it on its own terms, not the assertion's.
 - The algorithm comes from the enrolled key's record, never from the assertion's header.
-- The service caps the lifetime (`exp - iat`) whatever the client asked for.
+- The service caps the lifetime (`exp - iat`) whatever the client asked for, and allows only a
+  small clock skew (a minute at most), so a host with a drifting clock is refused (DE-11).
 - A cached grant never outlives the assertion it was granted for.
 - A clock fault answers its own code, carrying the server's time, and is never cached.
 - The account's state is revealed only after the signature is verified.

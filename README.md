@@ -1,8 +1,8 @@
 # Paranoid TypeScript
 
 A standard for building robust, very strict TypeScript applications, and for testing, shipping and
-deploying them. It is written for projects where most or all of the code is written by an AI
-coding agent, and for the people who direct those agents.
+deploying them. It is written for projects where most or all of the code is written by an AI coding
+agent, and for the people who direct those agents.
 
 ## Why it exists
 
@@ -17,17 +17,17 @@ tree nobody checked. What remains — what a SQL statement does, which lock a tr
 whether a business rule is the right rule — stays with tests against real systems and with review,
 which now has the time for it.
 
-One measured finding shapes the whole standard. When the strictness path in
-[09 Adoption](standards/09-adoption.md) was run on real services, every behavioural defect it
-surfaced came from a review or a test, and none was a type error. The compiler's job is to make a
-defect expressible and enforceable once found, and to keep whole classes from recurring. The
-reviews and tests are not optional extras around the type system; they are half of the method.
+One measured finding shapes the whole standard. When the strictness path in [09
+Adoption](standards/09-adoption.md) was run on real services, every behavioural defect it surfaced
+came from a review or a test, and none was a type error. The compiler's job is to make a defect
+expressible and enforceable once found, and to keep whole classes from recurring. The reviews and
+tests are not optional extras around the type system; they are half of the method.
 
 ## The ladder
 
-Every rule names its rung on the
-[Hierarchy of Defect Controls](https://github.com/odclcslkrpb5k/hierarchy-of-defect-controls), an
-adaptation to software of the occupational-safety Hierarchy of Controls (NIOSH). Highest first:
+Every rule names its rung on the [Hierarchy of Defect
+Controls](https://github.com/odclcslkrpb5k/hierarchy-of-defect-controls), an adaptation to software
+of the occupational-safety Hierarchy of Controls (NIOSH). Highest first:
 
 | Rung | Meaning | Example |
 |---|---|---|
@@ -86,12 +86,32 @@ not the only way, and a project that deploys differently takes its principles, n
 - **IDs are permanent.** A rule that stops applying is marked `RETIRED` with the date and reason,
   and its ID is never reused. Within a chapter, rules are grouped by topic, not by number.
 
+## Words used here
+
+- **The level**, or **the full level**: every MUST and SHOULD in chapters 02 to 05 in force.
+- **Ship**: the cycle that takes a change from a working tree to the main branch (chapter 10).
+- **Gate**: the script that runs every check before a commit is allowed, and judges each by its
+  exit status (SH-10, SH-11).
+- **Harvest**: the step of a ship that decides what goes into the project's notes (SH-5).
+- **Brief**: the instructions a review agent is given; different briefs find different defects
+  (SH-4).
+- **Skill**: a packaged instruction set an agent loads for a task (Claude Code's term); a "ship
+  skill" runs the ship cycle.
+- **Adapter** and **port**: from ports and adapters (hexagonal architecture). A port is a boundary
+  the program calls through; an adapter is the one module that talks to the foreign code behind it
+  (ER-3).
+- **Member path**: the dotted path of a field in a structured value, such as `order.customer.id`.
+- **Baseline** and **burning down**: the recorded set of existing violations a check tolerates, and
+  removing them until the record is empty (AD-2).
+- **Shadow mode**: running a new service beside the one it replaces, doing every read and recording
+  every write without making it (SV-6).
+
 ## Using it in a project
 
-A project's `CLAUDE.md` (or equivalent agent instructions) links to this standard, names the
-commit it last conformed to, and lists its deviations, each with its reason. It links to rules
-rather than copying them: copies drift, and drifted copies of the same rules across several
-repositories are part of why a central standard exists.
+A project's `CLAUDE.md` (or equivalent agent instructions) links to this standard, names the commit
+it last conformed to, and lists its deviations, each with its reason. It links to rules rather than
+copying them: copies drift, and drifted copies of the same rules across several repositories are
+part of why a central standard exists.
 
 ## Prior art
 
@@ -105,7 +125,8 @@ useful. Each rule's `Prior art` line names its own; the main ones are:
   neverthrow: chapter 04.
 - **Nominal or "newtype" types** (Haskell, Rust), expressed in TypeScript as branded types.
 - **RFC 2119** for requirement levels.
-- **Mutation testing** (PIT, Stryker): chapter 07 applies it by hand to regression tests.
+- **Mutation testing** (PIT, Stryker): chapter 07 applies it selectively, to regression tests and
+  to the tests of checkers.
 - **The Twelve-Factor App** for configuration from the environment, which chapter 12 tightens:
   parsed and refused at boot.
 - **Martin Kleppmann's fencing tokens** ("How to do distributed locking", 2016) for leases.

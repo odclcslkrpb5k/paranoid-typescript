@@ -8,9 +8,12 @@ ones that do not say so.
 A version bump is one change across every place the runtime is named (`.node-version` or `.nvmrc`,
 `engines`, the image's `FROM`, CI), not drift.
 
-**Why:** a runtime older than the project's TypeScript ignores, without a word, a compiler option
-it does not know. A test image on an older runtime ignored `erasableSyntaxOnly` and passed code the
-production runtime refused.
+**Why:** which syntax the runtime can strip, and how its built-in APIs behave, change between
+versions; code that passes in CI on one version can fail in production on another. Where the
+runtime has its own built-in type checker (Deno), it is worse: an older one ignores, without a
+word, a compiler option newer than its TypeScript. A test image on an older Deno ignored
+`erasableSyntaxOnly` and passed code the production version refused. On Node, `tsc` is a pinned
+dependency (TC-3) and refuses an option it does not know, so that half does not apply.
 
 **Enforced by:** Engineer, partly: `engine-strict=true` in `.npmrc` makes an install on the wrong
 Node fail. Missing Engineer control: a test that reads every place the version is named and fails
@@ -23,9 +26,9 @@ a declared field assigned in the constructor. The compiler settings are in CP-1.
 
 **Why:** Node runs `.ts` files by stripping their types and refuses anything that must be compiled.
 Code that is already erasable runs on Node, Deno and Bun, and through `tsc`, unchanged, so the
-choice of runtime stays open. Projects on one runtime had to plan a move when its end of
-development was announced; the ones already erasable faced no rewrite. Measured across seven
-services, the only cost was one mechanical rewrite per parameter property.
+choice of runtime stays open. When Deno's end of development was announced in October 2026,
+projects on it had to plan a move; the ones already erasable faced no rewrite. Measured across
+seven services, the only cost was one mechanical rewrite per parameter property.
 
 **Enforced by:** Engineer — `erasableSyntaxOnly` and `verbatimModuleSyntax` (CP-1).
 
@@ -42,15 +45,17 @@ judged a tree that was no longer the one being shipped.
 
 **Enforced by:** Engineer — the frozen install fails on drift.
 
-### TC-4 (SHOULD) Do not run dependency install scripts, and do not install a version on the day it is published.
-(PROPOSED) Disable lifecycle scripts by default and allow them per package where one is needed
-(pnpm does this by default and lists exceptions in `onlyBuiltDependencies`; npm has
-`ignore-scripts`). Where the package manager supports a minimum release age (pnpm's
-`minimumReleaseAge`), set one of days, not hours.
+### TC-4 (SHOULD) Do not run dependency install scripts, and do not install a version on the day it is published. (PROPOSED)
+Disable dependency build and install scripts by default and allow them per package where one is
+needed (recent pnpm does this by default with an explicit allow list; npm has `ignore-scripts`).
+Set a minimum release age of days, not hours (npm's `min-release-age` and pnpm's
+`minimumReleaseAge` both exist; check the unit each uses). Setting names change between package
+manager versions: check the current documentation rather than copying from here.
 
-**Why:** the npm compromises of September 2025 — maintainer accounts phished and popular packages
-republished, and a self-replicating worm — spread through install scripts and through versions
-installed within hours of publication, before anyone had noticed them.
+**Why:** in the npm compromises of September 2025, popular packages were republished from phished
+maintainer accounts with malicious code, and a self-replicating worm spread through `postinstall`
+scripts. Both reached users through versions installed within hours of publication, before anyone
+had noticed them.
 
 **Enforced by:** Engineer — package manager configuration, committed.
 
@@ -78,5 +83,6 @@ files it should not touch.
 - **Formatter:** Prettier or Biome. Either works, since lint is typescript-eslint regardless;
   Biome's own linter does not go as deep on type-aware rules, so it would format only.
 - **Runtime-specific permission flags:** Node's permission model (`--permission`, `--allow-fs-read`
-  and friends) is the counterpart of Deno's `--allow-*`; DE-10 asks for it, but no project under
-  this standard has run Node's model in production yet.
+  and friends) is the nearest counterpart of Deno's `--allow-*`, but coarser: it governs the file
+  system, child processes and workers, and network access only as all or nothing, with no per-host
+  grants. DE-10 asks for it, but no project under this standard has run it in production yet.

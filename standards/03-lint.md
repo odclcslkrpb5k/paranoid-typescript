@@ -6,7 +6,8 @@ code that trusts it. A linter without type information cannot see any of those, 
 reason this standard's reference toolchain is typescript-eslint.
 
 ### LN-1 (MUST) Lint with typescript-eslint's `strictTypeChecked` configuration, with type information, over every file the compiler checks.
-Every rule is an error. There are no warnings.
+Every rule is an error. There are no warnings. LN-2 to LN-7 then tighten some of the preset's rules
+and add rules it does not include; each says which.
 
 **Why:** a warning is an Administer control in disguise: it asks someone to notice, and in an
 agent's output nobody does.
@@ -17,13 +18,15 @@ backstop.
 **Prior art:** typescript-eslint's `strict-type-checked` shared config.
 
 ### LN-2 (MUST) No escape hatches.
-- `no-explicit-any`, and the whole `no-unsafe-*` family (`assignment`, `call`, `member-access`,
-  `return`, `argument`). `JSON.parse` and similar calls return an implicit `any` that
-  `no-explicit-any` never sees; the `no-unsafe-*` rules catch where it flows.
-- `consistent-type-assertions` with `assertionStyle: "never"`: no `as`. `as const` stays legal. The
-  one place a cast is allowed is a brand's constructor (BD-5), exempted by file in the lint config.
+- `no-explicit-any`, and every `no-unsafe-*` rule in the preset (`assignment`, `call`,
+  `member-access`, `return`, `argument` and the rest). `JSON.parse` and similar calls return an
+  implicit `any` that `no-explicit-any` never sees; the `no-unsafe-*` rules catch where it flows.
+- `consistent-type-assertions` with `assertionStyle: "never"` (an addition to the preset): no `as`.
+  `as const` stays legal. The one place a cast is allowed is a brand's constructor (BD-5), exempted
+  by file in the lint config.
 - `no-non-null-assertion`.
-- `ban-ts-comment` with no allowances: no `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck`.
+- `ban-ts-comment` with no allowances: no `@ts-ignore`, `@ts-expect-error` or `@ts-nocheck`. The
+  preset allows `@ts-expect-error` with a description, so this needs explicit options.
 
 **Why:** each is a place where someone overruled the type system, and the override outlives its
 reason. Together they turn the coercion review (BD-2) into a build error for everything but the
@@ -32,8 +35,9 @@ coercions lint cannot judge.
 **Enforced by:** Engineer.
 
 ### LN-3 (MUST) Every switch over a union is exhaustive, and a `default` does not count.
-`switch-exhaustiveness-check` with `considerDefaultExhaustiveForUnions: false`, and the `default`
-branch of a switch over a union calls `unreachable(x)` (ER-2), whose parameter is `never`.
+`switch-exhaustiveness-check` (an addition to the preset) with `considerDefaultExhaustiveForUnions:
+false`, and the `default` branch of a switch over a union calls `unreachable(x)` (ER-2), whose
+parameter is `never`.
 
 **Why:** adding a variant to a union becomes a compile-time list of every place that must handle
 it. This is the property Rust's `match` is usually the argument for.
@@ -42,7 +46,8 @@ it. This is the property Rust's `match` is usually the argument for.
 
 ### LN-4 (MUST) Every promise is awaited, returned, or handed to something that handles it.
 `no-floating-promises`, `no-misused-promises`, `return-await` (`in-try-catch` or `always`),
-`require-await`, `promise-function-async`.
+`require-await`, and the addition `promise-function-async`, so a function that returns a promise is
+`async` and cannot also throw synchronously.
 
 **Why:** an unawaited promise is a failure nobody sees, and the commonest way to turn a failure
 into success (ER-6).
@@ -50,7 +55,9 @@ into success (ER-6).
 **Enforced by:** Engineer.
 
 ### LN-5 (MUST) A condition is a boolean.
-`strict-boolean-expressions`: `if (count)` on a number is refused; the code says `count !== 0`.
+`strict-boolean-expressions` (an addition to the preset) with `allowNumber: false` and
+`allowString: false`, whose defaults are `true`: `if (count)` on a number is refused; the code says
+`count !== 0`.
 
 **Why:** `0`, `""` and `NaN` are falsy, and a truthiness test on them is a bug waiting for the
 value that is legitimately zero or empty.
@@ -73,12 +80,15 @@ nothing until `Result` arrives at step 4, and then holds every new use from the 
 
 **Prior art:** Rust's `#[must_use]`.
 
-### LN-7 (SHOULD) The rest of the strict set, and a few more.
-`restrict-template-expressions`, `no-unnecessary-condition`, `prefer-readonly`,
-`explicit-module-boundary-types`, `consistent-type-imports`, `only-throw-error`, `no-deprecated`,
-`use-unknown-in-catch-callback-variable`, `prefer-nullish-coalescing`. Core ESLint `eqeqeq` as
-`["error", "always", { "null": "ignore" }]`, which keeps `x == null` — the idiom that matches both
-`null` and `undefined`.
+### LN-7 (SHOULD) Add a few rules the preset leaves out.
+`prefer-readonly`, `explicit-module-boundary-types`, `consistent-type-imports` and
+`prefer-nullish-coalescing`; and core ESLint `eqeqeq` as `["error", "always", { "null": "ignore"
+}]`, which keeps `x == null`, the idiom that matches both `null` and `undefined`.
+
+**Why:** each closes a small gap the preset leaves: a field reassigned that was meant to be fixed;
+an exported function whose return type is whatever its body happens to infer, so a change inside it
+silently changes its contract; `||` replacing a legitimate `0` or `""` with a default; `==`
+coercing across types.
 
 **Enforced by:** Engineer.
 
@@ -100,10 +110,13 @@ may appear, which files may import a driver, which built-ins must go through a w
 lint rule is code, held to the same tests as any other, and each of its refusals is mutation-tested
 (TS-5): a rule that never fires looks exactly like a codebase that never breaks it.
 
+**Why:** an architectural rule held only by review is re-argued in every change; one held by lint
+is settled once. A custom rule that is wrong fails open, silently, everywhere.
+
 **Enforced by:** Engineer.
 
 ## What lint cannot see
 
-A call that throws with no `throw` in sight (`new URL("bad")`, a brand's constructor), a combinator
+A call that throws with no `throw` in sight (`new URL("bad")`, a library function), a combinator
 that settles rejections (`Promise.allSettled`), and anything about what data means. Those stay with
 chapter 04's adapter rules, tests and review.

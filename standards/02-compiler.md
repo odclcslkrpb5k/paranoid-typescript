@@ -20,13 +20,15 @@ The compiler is the cheapest reviewer there is. This chapter turns it all the wa
 | `noPropertyAccessFromIndexSignature` | `row.field` on a `Record<string, unknown>`; write `row["field"]` |
 
 **Why:** each turns a class of silent runtime `undefined` or dead path into a compile error.
-Measured on seven services already under `strict`, all of these but the last cost between none and
-six errors each. On an agent-written codebase of 59,000 lines that had only `strict`,
-`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` and `noPropertyAccessFromIndexSignature`
-together produced 2,349 errors, three quarters of them in tests — which is why CP-2 exists.
-`noPropertyAccessFromIndexSignature` mostly turns `x.foo` into `x["foo"]` on values that are
-honestly untyped; it pays once boundaries are parsed into declared types (BD-1), so on an existing
-codebase it comes after that step (AD-4).
+Measured on seven services that already ran under `strict` with tidy boundaries, the rows from
+`noUncheckedIndexedAccess` to `allowUnusedLabels` cost between none and six errors each;
+`erasableSyntaxOnly` cost up to 27, one per parameter property;
+`noPropertyAccessFromIndexSignature` cost 55 to 268 edits each. On an agent-written codebase of
+59,000 lines that had only `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` and
+`noPropertyAccessFromIndexSignature` together produced 2,349 errors, three quarters of them in
+tests — which is why CP-2 exists. `noPropertyAccessFromIndexSignature` mostly turns `x.foo` into
+`x["foo"]` on values that are honestly untyped. It pays once boundaries are parsed into declared
+types (BD-1), so on an existing codebase it comes after that step (AD-4).
 
 **Enforced by:** Engineer — `tsc --noEmit` in the check command (TC-5).
 
@@ -35,8 +37,10 @@ codebase it comes after that step (AD-4).
 
 ### CP-2 (MUST) Check everything: source, tests, scripts and tools, under the same settings.
 One `tsc --noEmit` run covers every TypeScript file in the repository, with no `exclude` for tests
-or tooling. Where tests need something only tests may do, it goes through a named helper (`must(x,
-"what")` asserts presence and narrows, where `x!` only silences the compiler), not a looser config.
+or tooling. The one exception is a directory of fixtures that exist to fail a check (CP-3, LN-9):
+it is excluded from the main run and checked by the fixture test instead. Where tests need
+something only tests may do, it goes through a named helper (`must(x, "what")` asserts presence and
+narrows, where `x!` only silences the compiler), not a looser config.
 
 **Why:** tests are code an agent writes too, and most of what a stricter setting finds is in them.
 Looser rules for tests would leave most of the code under the weaker control.
@@ -47,8 +51,10 @@ Looser rules for tests would leave most of the code under the weaker control.
 Keep one fixture per option in `tsconfig.json`: a file that must fail the check with that option on
 and pass with it off. A test runs each fixture both ways, and fails when an option has no fixture.
 
-**Why:** a toolchain that does not know an option ignores it silently (TC-1). The settings file
-then claims a protection the checker does not give.
+**Why:** the settings file can claim a protection the checker does not give. An `extends` chain can
+override a flag, a later edit can drop one, and a runtime with a built-in checker can ignore an
+option it does not know (TC-1). Each passes the check while the protection is gone; only a fixture
+that must fail notices.
 
 **Enforced by:** Engineer — the fixture test.
 

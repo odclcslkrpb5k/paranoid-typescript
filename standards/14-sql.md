@@ -34,7 +34,7 @@ one). Missing: a catalog test that every `volatile` function is on an explicit l
 
 **Why:** a `language sql` body is resolved when it is created, so a rebuild re-validates it for
 free. Know the ratio: a contract of raising typed errors forces plpgsql on most functions, which is
-why SQ-1 is not optional.
+why SQ-1 matters most where plpgsql dominates.
 
 **Enforced by:** Administer.
 

@@ -53,9 +53,10 @@ token in the query string, some bot APIs put the token in the path. For each, ev
 can be written down removes the credential:
 - the reverse proxy, which may log the URI of a request it could not complete even with no access
   log configured (Caddy: a `log` filter deleting the query parameter);
-- the service's own errors: `fetch` errors quote the URL in their `cause`, so an error from such a
-  call is rebuilt from the status and the answer, never from the underlying error. Masking is not
-  enough: an echo carries the token percent-encoded or JSON-escaped, in shapes no mask knows;
+- the service's own errors: some runtimes' `fetch` errors quote the full URL (Deno's do; Node's
+  usually name only host and port, but do not rely on it), so an error from such a call is rebuilt
+  from the status and the answer, never from the underlying error. Masking is not enough: an echo
+  carries the token percent-encoded or JSON-escaped, in shapes no mask knows;
 - the browser: the page strips a returned token from the address before anything else runs, and is
   served with `Referrer-Policy: no-referrer`.
 
@@ -84,5 +85,4 @@ opened. Mapping DNS alone looks sufficient and is not: an IP literal needs no na
 
 **Enforced by:** Engineer — the renderer's flags and the test.
 
-### DP-8 (MUST NOT) Run a command whose output may hold sensitive data.
-See AG-9: an agent's tool output is kept on disk, outside the repository.
+### DP-8 (RETIRED 2026-10-14: a duplicate of AG-9, which covers agents' tool output.)

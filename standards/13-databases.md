@@ -8,8 +8,10 @@ For Postgres 17 and later: `--locale-provider=builtin --builtin-locale=C.UTF-8 -
 the init arguments, in development and production alike.
 
 **Why:** otherwise the image's C library decides how text sorts and compares — byte order under
-musl, linguistic under glibc — and Postgres cannot warn when that library changes under its
-indexes. Once there are rows, changing it is a data migration.
+musl, linguistic under glibc — and a change of that library under existing indexes silently
+corrupts their order. Postgres warns only after the fact, and only where the library reports a
+collation version (glibc does; musl does not). Once there are rows, changing it is a data
+migration.
 
 **Enforced by:** Engineer — a contract test reads every compose file.
 
@@ -24,15 +26,17 @@ project on the machine that asks for it gets this build.
 a built service.
 
 ### DB-3 (SHOULD) Every surrogate key has one width, and a catalog test says so.
-One width for every key, so a key's type in the code does not depend on which table issued it: the
-Postgres driver hands back `int8` as a string and `int4` as a number. `integer` unless a table will
-exhaust it; then `bigint`, ids are opaque branded strings in the code (BD-4), and nothing else is
-`bigint`. A single sequence for the schema means an id never names two rows in different tables.
-The test enumerates every table from the catalog, partitioned ones included, and asserts each key's
-width and default.
+One width for every key in the schema, so a key's type in the code does not depend on which table
+issued it: the common Node drivers hand back `int8` as a string and `int4` as a number. Choose
+`integer` for every key unless some table will exhaust it; if one will, every key is `bigint`, ids
+are opaque branded strings in the code (BD-4), and nothing else in the schema is `bigint`. A single
+sequence shared by every table is also worth having: an id then never names two rows in different
+tables, so one passed to the wrong table finds nothing rather than the wrong row. The test
+enumerates every table from the catalog, partitioned ones included, and asserts each key's width
+and default.
 
-**Why:** a `Number()` that hid an `int8`/`int4` split for two milestones is where the coercion
-rules (BD-2) came from.
+**Why:** a `Number()` that hid an `int8`/`int4` split for months is where the coercion rules (BD-2)
+came from.
 
 **Enforced by:** Engineer — the catalog test.
 
@@ -47,7 +51,10 @@ one turns a failed release's rollback into an outage. A changed meaning fails wi
 migration only added columns, but changed what an existing column held, and the previous image
 would have rendered the new rows wrongly and logged nothing.
 
-**Enforced by:** Engineer — the migrator refuses a changed checksum.
+**Enforced by:** Engineer for the checksum and order: the migrator refuses a changed or misplaced
+file. Administer for additivity. Missing Engineer control: a check that refuses a migration holding
+`drop`, `rename` or a column type change unless its file carries an explicit marker naming the
+backup.
 
 **Prior art:** expand/contract ("parallel change") migrations.
 

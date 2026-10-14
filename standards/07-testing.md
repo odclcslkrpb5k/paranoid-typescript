@@ -15,28 +15,30 @@ anything beyond a test account.
 hold real customer data. A test that reaches one does real damage or real spending.
 
 **Enforced by:** Engineer, by making the network unreachable rather than asking tests not to use
-it: run the suite in a container on a network declared `internal`, or under a runtime permission
-set that allows only the test database and loopback, or with a test browser that resolves no
-hostname but its fakes' (`--host-resolver-rules`), with a test proving the block holds.
+it: run the suite in a container on a network declared `internal` (the most portable control), or
+under a runtime permission set that allows only the test database and loopback (possible in Deno;
+Node's permission model grants network access only as all or nothing), or with a test browser that
+resolves no hostname but its fakes' (`--host-resolver-rules`), with a test proving the block holds.
 
 ### TS-2 (MUST) Test anything whose meaning depends on SQL semantics against the real database engine, at the production version.
-A fake cannot show evaluation order inside an upsert, strict mode refusing a value, or what the
-driver hands back for a column type. Database tests are gated on an environment variable and show
-as skipped, not passed, without it; the gate (SH-10) runs them and fails on a skip (TS-10). Running
-the whole suite beside the database in Docker Compose is the SHOULD.
+A fake cannot show evaluation order inside an upsert, a constraint or type refusing a value, or
+what the driver hands back for a column type. Prefer a test command that starts the database (in
+Docker Compose, beside the suite), so the tests always run. Where that is not possible, the
+database tests live in their own directory, run by a separate task that the check command (TC-5)
+always runs; never as tests that quietly skip when a variable is unset (TS-10).
 
 **Why:** a 64-bit id that rounded to a different record (BD-4) was found in review; only a test
 against the real engine could pin the fix.
 
 **Enforced by:** Engineer — the test command starts the database.
 
-### TS-3 (SHOULD) The suite fails a test that leaks a timer, a socket or a pool connection.
-(PROPOSED) An `afterEach` (or a global teardown) asserts that every database pool is drained, no
-timer or interval is pending and no server is listening.
+### TS-3 (SHOULD) The suite fails a test that leaks a timer, a socket or a pool connection. (PROPOSED)
+An `afterEach` (or a global teardown) asserts that every database pool is drained, no timer or
+interval is pending and no server is listening.
 
 **Why:** a leaked handle is usually a missing `await` or a missing `finally`, and in production it
-is a slow resource leak or a hang on shutdown. Neither `node:test` nor Vitest checks this by
-default.
+is a slow resource leak or a hang on shutdown. Neither `node:test` nor Vitest fails an individual
+test for a leaked handle out of the box (check your version: runners add diagnostics over time).
 
 **Enforced by:** Engineer — the teardown assertion.
 
@@ -48,7 +50,7 @@ default.
 
 **Enforced by:** Administer — a finding in review (SH-3) when missing. TS-5 checks it was true.
 
-### TS-5 (SHOULD) Mutation-test every regression test written for a review finding.
+### TS-5 (SHOULD) Mutation-test every regression test written for a review finding, and every test of a guard or checker.
 Put the bug back, watch the test fail, take it out again. A tool does it, not a hand edit, and the
 tool:
 - runs the test on the unmutated code first, and counts a mutant as caught only when that run
@@ -74,7 +76,8 @@ uncommitted fixes; a basename-keyed copy restored one file over another.
 **Enforced by:** Engineer for the mechanics (the tool); Administer that it is run, in the ship
 cycle.
 
-**Prior art:** mutation testing (PIT, Stryker), applied by hand to the tests that matter most.
+**Prior art:** mutation testing (PIT, Stryker), applied selectively, to the tests that matter most,
+rather than across the whole codebase.
 
 ### TS-6 (SHOULD) A check that selects its own subject asserts which subject it selected.
 Name the tables, routes or files it found and compare them with the set it claims to cover, in both
@@ -105,7 +108,7 @@ image built earlier. A suite that drives a long-running service recreates it in 
 **Why:** a stale image passes with the same count, colour and duration as a real run. Three green
 suites in one ship ran a tree that was already red.
 
-**Enforced by:** Engineer — the test command includes the rebuild. SH-10 proves it.
+**Enforced by:** Engineer — the test command includes the rebuild.
 
 ### TS-9 (SHOULD) Test an outbound HTTP client against a loopback server, not only through a fake of its own interface.
 Start a server on port 0, with the base URL and time budget as parameters. A handler that never
@@ -173,7 +176,9 @@ assert what a reader would misread: a label broken across lines, a value cut to 
 
 **Enforced by:** Administer, in review.
 
-### TS-15 (SHOULD) When a test adds a new failure cause to a shared fixture, each older "this check makes it fail" test runs with only its own cause present.
+### TS-15 (SHOULD) A test that proves one cause fails a check runs with only that cause present.
+When a shared fixture gains a new way to fail, each older "this cause makes the check fail" test
+removes every other cause from its copy of the fixture.
 
 **Why:** otherwise the older test passes because of the new cause, and no longer tests its own.
 
