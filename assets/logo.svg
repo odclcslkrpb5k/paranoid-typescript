@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-labelledby="title">
+  <title id="title">Paranoid TypeScript</title>
+  <!--
+    The Hierarchy of Controls is drawn as an inverted triangle, most effective rung at the top.
+    Five bands are the five rungs, Eliminate widest; the eye is the paranoia, watching from the top.
+    The gaps are transparent, so the mark reads on light and dark backgrounds alike.
+  -->
+  <defs>
+    <clipPath id="ladder">
+      <path d="M16 24 H224 L120 220 Z"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#ladder)">
+    <rect x="0" y="24" width="240" height="76" fill="#164577"/>
+    <rect x="0" y="105" width="240" height="25" fill="#1f5a99"/>
+    <rect x="0" y="135" width="240" height="25" fill="#3378c2"/>
+    <rect x="0" y="165" width="240" height="25" fill="#5f9ade"/>
+    <rect x="0" y="195" width="240" height="25" fill="#97bdea"/>
+  </g>
+  <path d="M62 60 Q120 18 178 60 Q120 102 62 60 Z" fill="#ffffff"/>
+  <circle cx="120" cy="60" r="20" fill="#3378c2"/>
+  <circle cx="120" cy="60" r="9" fill="#0a1f38"/>
+  <circle cx="126" cy="54" r="3.5" fill="#ffffff"/>
+</svg>

@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="assets/logo.svg" width="160" alt="An eye watching from the top of an inverted triangle
+  of five bands: the Hierarchy of Defect Controls, Eliminate widest">
+</p>
+
 # Paranoid TypeScript
 
 A standard for building robust, very strict TypeScript applications, and for testing, shipping and
