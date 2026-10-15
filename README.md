@@ -198,3 +198,10 @@ From security:
 
 Started 2026-10-14. The standard is deliberately mutable: it changes as projects built under it
 find holes, edge cases and rules that were wrong. Git history is its changelog.
+
+## License
+
+The standard's text is licensed under [Creative Commons Attribution 4.0
+International](LICENSE) (CC BY 4.0): share and adapt it, with attribution. The code in
+[`examples/`](examples/) is licensed under the [MIT License](examples/LICENSE), so it can be copied
+into a project without the attribution requirements of the prose license.

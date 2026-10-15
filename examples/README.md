@@ -69,3 +69,7 @@ way, for example `docker compose run --build --rm check npm run coercions`.
   prose inside a string. It is a list for a reviewer, not a verdict.
 - `tsc-baseline`'s command line is not tested end to end; its decisions are tested as pure
   functions.
+
+## License
+
+MIT; see [LICENSE](LICENSE). The standard these examples accompany is CC BY 4.0.
