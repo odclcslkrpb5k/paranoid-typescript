@@ -41,6 +41,8 @@ error value cannot carry outside text unless someone puts it there. Administer f
 Missing Engineer control: a lint rule refusing a log, error or alert call whose arguments include a
 response body, a URL's path or query, or a caught error's `message`.
 
+**Prior art:** the OWASP Logging Cheat Sheet.
+
 ### DP-4 (MUST) Read only the lines of a configuration file you need.
 Status scripts, deploy scripts and diagnostics check for a variable's presence or read a non-secret
 one (a URL, a mode); they never dump the file.

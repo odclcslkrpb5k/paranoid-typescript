@@ -32,7 +32,8 @@ to process; a cast had told the compiler it was fine.
 **Enforced by:** Engineer — LN-2 bans `as` and `any`, so the only way to get a typed value from
 outside is through a schema.
 
-**Prior art:** "Parse, don't validate" (Alexis King, 2019).
+**Prior art:** "Parse, don't validate" (Alexis King, 2019). HAZOP's guide words (no, more, less,
+part of, other than, reverse) make a checklist for reviewing a parser: what does it do with each?
 
 ### BD-2 (MUST) Every coercion a change adds is a finding until justified.
 `as`, `as unknown as`, `any`, non-null `!`, `Number(`, `String(`, `Boolean(`, `parseInt`,
@@ -110,7 +111,9 @@ proves it does. Administer that a consumer uses the owner's brand rather than it
 Engineer control: `no-restricted-syntax` refusing a type with a `__brand` member outside the
 project's own brand module, so another system's brand can only be imported.
 
-**Prior art:** newtypes (Haskell, Rust); branded types are the common TypeScript idiom for them.
+**Prior art:** newtypes (Haskell, Rust); value objects and "primitive obsession" (Domain-Driven
+Design); "make illegal states unrepresentable" (Yaron Minsky); branded types are the common
+TypeScript idiom for them.
 
 ### BD-6 (MUST) Know the time zone of every timestamp that comes from outside.
 A zone-less wall-clock timestamp from another system is kept as text in a branded type, parsed only

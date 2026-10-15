@@ -42,6 +42,8 @@ parameter is `never`.
 **Why:** adding a variant to a union becomes a compile-time list of every place that must handle
 it. This is the property Rust's `match` is usually the argument for.
 
+**Prior art:** "make illegal states unrepresentable" (Yaron Minsky).
+
 **Enforced by:** Engineer.
 
 ### LN-4 (MUST) Every promise is awaited, returned, or handed to something that handles it.

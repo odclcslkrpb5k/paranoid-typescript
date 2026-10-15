@@ -32,6 +32,9 @@ seven services, the only cost was one mechanical rewrite per parameter property.
 
 **Enforced by:** Engineer — `erasableSyntaxOnly` and `verbatimModuleSyntax` (CP-1).
 
+**Prior art:** the TC39 Type Annotations proposal, which would make erasable type syntax part of
+JavaScript itself.
+
 ### TC-3 (MUST) Pin every dependency to an exact version, commit the lockfile, and install frozen.
 Exact versions in `package.json` (`save-exact=true` in `.npmrc`), no `^` or `~`. Every command that
 resolves dependencies — CI, the image build, the test run — installs from the lockfile and fails

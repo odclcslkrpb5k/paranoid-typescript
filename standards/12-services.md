@@ -146,6 +146,9 @@ stale and nobody reads it.
 
 **Enforced by:** Engineer — the alerting client, with tests that a restart can clear.
 
+**Prior art:** ISA-18.2 / IEC 62682 alarm management: an alarm has a defined state, owned by the
+system, and returns to normal when its cause clears.
+
 ### SV-12 (MUST) One incident is one alert, however many items it affects.
 Raise for the cause, not per record: a worker with hundreds of failing items raises one alert for
 its queue, whose detail counts them and lists the first few by key. Update the detail when it
@@ -161,7 +164,8 @@ alert while the stuck item's newest change sat filtered out.
 Missing Engineer control: a test against the alerting client's fake that one cause failing many
 items raises one alert.
 
-**Prior art:** Google's SRE books on alert fatigue.
+**Prior art:** ISA-18.2 / IEC 62682, alarm management in the process industries: every alarm
+actionable, no floods. Google's SRE books on alert fatigue.
 
 ### SV-13 (MUST) Something outside the alerting system watches the alerting system.
 An uptime monitor on other infrastructure polls its health endpoint and alerts through a separate

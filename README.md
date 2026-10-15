@@ -40,6 +40,17 @@ of the occupational-safety Hierarchy of Controls (NIOSH). Highest first:
 A rule enforced only by Administer is a request to remember. Its `Enforced by` line names the
 Engineer control that is missing, so the next project can build it.
 
+### Layers count only when they are independent
+
+The standard stacks its controls — compiler, lint, boundary parsing, typed errors, tests, review —
+in the manner of defense in depth, where no one layer is trusted to catch everything. The idea has
+a caveat that matters more for agent-written code than for any other kind: two layers count as two
+only if they cannot fail for the same reason. A test an agent writes from its own reading of a
+problem shares the agent's misreading, so it is not independent of the code it tests. That is why
+the standard leans on machine checks the agent did not write (chapters 02 and 03), on tests
+measured by putting bugs back (TS-5), on fixtures recorded from real systems (TS-11), and on
+reviewers briefed separately from the author (SH-4).
+
 ## The chapters
 
 | File | Prefix | Covers |
@@ -134,6 +145,46 @@ useful. Each rule's `Prior art` line names its own; the main ones are:
 - **Google's SRE books** on alerting: one incident is one alert.
 - **GitHub's Scientist** and dark launching, for shadow mode.
 - **Deno's test sanitizers**, which fail a test that leaks a timer or a connection.
+
+From domain modelling and functional programming:
+
+- **"Make illegal states unrepresentable"** (Yaron Minsky): exhaustive unions (LN-3), branded ids
+  (BD-5) and the ban on escape hatches all make the type checker refuse states the program must
+  never be in.
+- **Primitive obsession and value objects** (Domain-Driven Design): branded ids (BD-5).
+- **Railway-oriented programming** (Scott Wlaschin): `Result` and its handling (chapter 04).
+- **The anti-corruption layer** (Eric Evans, Domain-Driven Design): adapters (ER-3), which keep
+  foreign code's exceptions and shapes from leaking inward.
+- **Poka-yoke** (mistake-proofing, Shigeo Shingo) and **fail-fast design**: refusing bad input at
+  the boundary and bad configuration at boot (BD-1, SV-1).
+
+From safety-critical and industrial engineering. These standards govern systems where a defect can
+kill, and the parallels are structural rather than claims of equivalence: nothing here makes a
+TypeScript service certifiable under any of them.
+
+- **MISRA C and C++**: a language restricted to a safer subset, with rules graded Mandatory,
+  Required and Advisory. Chapters 02 and 03 subset TypeScript the same way, graded MUST, SHOULD and
+  MAY.
+- **IEC 61508** (functional safety): recommends strongly typed languages, language subsets and
+  static analysis, more strongly the higher the required safety integrity level.
+- **DO-178C** (airborne software): independence of verification from development, the reason for
+  separately briefed reviewers (SH-4). Its structural coverage criterion (MC/DC) measures what
+  tests execute; mutation testing (TS-5) measures what they would catch.
+- **HAZOP** (hazard and operability study): its guide words — no, more, less, part of, other than,
+  reverse — make a useful checklist for reviewing a boundary parser (BD-1): a missing member, a
+  value out of range, an unknown enumeration value.
+- **STPA** (Nancy Leveson): an unsafe control action is one given too early, too late, or stopped
+  too soon. ER-10's audit of aborts asks the same of a run cut short.
+- **ISA-18.2 / IEC 62682** (alarm management for the process industries): every alarm actionable,
+  no alarm floods, alarms rationalized. SV-11 to SV-13 apply the same discipline to alerts.
+- **Defense in depth** (IAEA INSAG-10): independent layers of protection; see "Layers count only
+  when they are independent" above.
+
+From security:
+
+- **The OWASP Logging Cheat Sheet**: what must never be logged (DP-3), and log injection.
+- **The TC39 Type Annotations proposal**: the direction of travel that makes erasable-only
+  TypeScript (TC-2) a safe bet.
 
 ## Status
 

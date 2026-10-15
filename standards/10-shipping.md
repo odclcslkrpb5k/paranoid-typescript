@@ -63,6 +63,8 @@ found the other's.
 **Enforced by:** Administer — the ship skill. Missing Engineer control: the ship tool records which
 briefs and models reviewed the diff and refuses fewer than the three briefs.
 
+**Prior art:** DO-178C's independence of verification: whoever verifies is not whoever wrote it.
+
 ### SH-5 (MUST) Harvest before committing: decide, every ship, what goes into the notes (RP-3).
 "Nothing durable this ship" is a valid outcome if it is a decision, not a skipped step.
 

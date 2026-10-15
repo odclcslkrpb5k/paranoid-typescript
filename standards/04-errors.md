@@ -26,8 +26,9 @@ and 19 tests that passed on any error.
 **Enforced by:** Engineer — the compiler forces narrowing on `ok`; LN-3 forces exhaustive handling;
 LN-6 forces use; ER-2 to ER-4's lint rules confine `throw` and `catch`.
 
-**Prior art:** Rust's `Result`; neverthrow and Effect in TypeScript. Whether to use a library or a
-type of about thirty lines is open; projects so far have used their own, with a lint plugin.
+**Prior art:** Rust's `Result`; railway-oriented programming (Scott Wlaschin); neverthrow and
+Effect in TypeScript. Whether to use a library or a type of about thirty lines is open; projects so
+far have used their own, with a lint plugin.
 
 ### ER-2 (MUST) `panic()` is the only `throw`, for what the types rule out.
 A broken invariant — a bug in this program, never a failure of something it depends on — calls
@@ -73,7 +74,8 @@ handler only there and in ER-5's catch-alls. Test fakes that stand for foreign c
 `test/fakes/` and may throw and reject as the real thing does; they do not `panic()`, which claims
 a broken invariant.
 
-**Prior art:** ports and adapters (hexagonal architecture, Alistair Cockburn).
+**Prior art:** ports and adapters (hexagonal architecture, Alistair Cockburn); the anti-corruption
+layer of Domain-Driven Design (Eric Evans).
 
 ### ER-4 (MUST) Built-ins that throw are called through wrappers that return a `Result`.
 `JSON.parse`, `new URL`, `BigInt(...)`, `decodeURIComponent`, `atob`, `structuredClone`,
@@ -161,3 +163,6 @@ was least visible.
 **Enforced by:** Administer, in the conversion's review; a test per abort path. Missing Engineer
 control: a test that fires the abort signal at each stage of a run in turn and asserts the run is
 never carried into the next stage or marked done.
+
+**Prior art:** STPA's unsafe control actions (Nancy Leveson): an action stopped too soon, or
+carried on after it should have stopped.
