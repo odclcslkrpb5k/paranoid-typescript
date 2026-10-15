@@ -15,9 +15,10 @@ anything beyond a test account.
 hold real customer data. A test that reaches one does real damage or real spending.
 
 **Enforced by:** Engineer, by making the network unreachable rather than asking tests not to use
-it: run the suite in a container on a network declared `internal` (the most portable control), or
-under a runtime permission set that allows only the test database and loopback (possible in Deno;
-Node's permission model grants network access only as all or nothing), or with a test browser that
+it: run the suite in a container with no network at all (`network_mode: none`, where it needs no
+other container), or on a network declared `internal` (the most portable controls), or under a
+runtime permission set that allows only the test database and loopback (possible in Deno; Node's
+permission model grants network access only as all or nothing), or with a test browser that
 resolves no hostname but its fakes' (`--host-resolver-rules`), with a test proving the block holds.
 
 ### TS-2 (MUST) Test anything whose meaning depends on SQL semantics against the real database engine, at the production version.

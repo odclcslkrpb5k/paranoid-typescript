@@ -123,6 +123,10 @@ meet a rule, not the only one.
 
 ## Using it in a project
 
+A project under this standard needs one thing installed on the machine that works on it: Docker.
+Everything else — the runtime, tools and dependencies, each at an exact version — is defined in the
+project's `Dockerfile` and compose file (TC-9).
+
 A project's `CLAUDE.md` (or equivalent agent instructions) links to this standard, names the commit
 it last conformed to, and lists its deviations, each with its reason. It links to rules rather than
 copying them: copies drift, and drifted copies of the same rules across several repositories are

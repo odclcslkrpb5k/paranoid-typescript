@@ -1,0 +1,32 @@
+# Everything the examples need, as services: only Docker is required on the workstation (TC-9).
+#
+#   docker compose run --build --rm check   every check, against the tree as it is now (TS-8)
+#   docker compose run --build --rm fix     format and lint-fix the files in place (see below)
+name: paranoid-typescript-examples
+
+x-image: &image
+  build:
+    context: ..
+    dockerfile: examples/Dockerfile
+  # A name of its own, never an upstream tag (DB-2).
+  image: paranoid-typescript-examples:dev
+
+services:
+  check:
+    <<: *image
+    # No network at all, so no test can reach a live system (TS-1).
+    network_mode: none
+    command: ["npm", "run", "check"]
+
+  fix:
+    <<: *image
+    network_mode: none
+    # Writes back to the working tree, so it runs as the workstation's user (bash's own UID is
+    # read-only, hence the other names):
+    # HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose run --build --rm fix
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    volumes:
+      - ./:/repo/examples
+      # The image's installed packages, rather than whatever the working tree holds.
+      - /repo/examples/node_modules
+    command: ["npm", "run", "fix"]

@@ -5,8 +5,10 @@ shows one way to meet a rule, and the rule links here. Everything in this direct
 standard itself: every compiler setting of chapter 02, the lint of chapter 03, errors as values,
 tests that cannot reach the network.
 
-Node 24 LTS, TypeScript 6.0 (typescript-eslint does not yet support 7.0), `node:test`, valibot,
-fast-check.
+The only thing a workstation needs is Docker. The environment — Node 24 LTS, git, and every
+package at an exact version — is defined in [`Dockerfile`](Dockerfile) and
+[`compose.yaml`](compose.yaml), and CI runs the same service. TypeScript is 6.0 (typescript-eslint
+does not yet support 7.0); tests use `node:test`, valibot and fast-check.
 
 ## What is here
 
@@ -30,7 +32,9 @@ fast-check.
 | [`tools/tsc-baseline.ts`](tools/tsc-baseline.ts)                                                 | a ratchet for compiler errors, read from the base branch                                                                 | AD-2                       |
 | [`tools/coercions.ts`](tools/coercions.ts)                                                       | every coercion on the lines a change adds, for review                                                                    | BD-2                       |
 | [`tools/hidden-chars.ts`](tools/hidden-chars.ts)                                                 | literal hidden characters found and escaped                                                                              | CD-7                       |
-| [`../.github/workflows/examples.yml`](../.github/workflows/examples.yml)                         | CI in the pinned image, with the network off for the check                                                               | TC-1, TC-5, TS-1           |
+| [`Dockerfile`](Dockerfile), [`compose.yaml`](compose.yaml)                                       | the environment as files: runtime, git and packages pinned; the check with no network                                    | TC-9, TC-1, TS-1, TS-8     |
+| [`../.github/workflows/examples.yml`](../.github/workflows/examples.yml)                         | CI running the same compose service                                                                                      | TC-5, TC-9                 |
+| [`test/cli.test.ts`](test/cli.test.ts)                                                           | the git-driven tools run end to end in throwaway repositories                                                            | BD-2, CD-7                 |
 
 `tools/` and `lint/` keep every type and lint rule but are exempt from the architecture rules of
 chapter 04: they are small programs whose whole job is to drive git, `tsc` and ESLint, so each is
@@ -38,15 +42,17 @@ its own adapter.
 
 ## Running it
 
-In the pinned image, as CI does; installing needs the network, checking does not:
+    docker compose run --build --rm check
 
-    IMAGE=node:24.22.0-slim
-    docker run --rm -u "$(id -u):$(id -g)" -e npm_config_cache=/tmp/.npm \
-      -v "$PWD:/w" -w /w "$IMAGE" npm ci
-    docker run --rm --network none -u "$(id -u):$(id -g)" -v "$PWD:/w" -w /w "$IMAGE" npm run check
+builds the image (installing from the lockfile and verifying registry signatures, which needs the
+network) and then runs every check with no network at all: formatting, the type check, the
+compiler-option fixtures, lint, the tests, and a scan of the whole repository for hidden
+characters. `--build` makes the run check the tree as it is now, never an older image (TS-8).
 
-`npm run check` runs, in order: formatting, the type check, the compiler-option fixtures, lint and
-the tests. `npm run coercions [<base>]`, `npm run baseline` and `npm run hidden-chars` need git.
+    HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose run --build --rm fix
+
+formats and lint-fixes the files in place, as the workstation's user. Anything else runs the same
+way, for example `docker compose run --build --rm check npm run coercions`.
 
 ## Known limits
 
@@ -61,5 +67,5 @@ the tests. `npm run coercions [<base>]`, `npm run baseline` and `npm run hidden-
 - The HTTP adapter reads a response body whole, without a size cap.
 - `coercions` matches a line at a time: it skips comments and imports, and still flags `as` in
   prose inside a string. It is a list for a reviewer, not a verdict.
-- The command-line halves of the git-driven tools are not tested in the suite, which runs in an
-  image without git; their logic is tested as pure functions.
+- `tsc-baseline`'s command line is not tested end to end; its decisions are tested as pure
+  functions.

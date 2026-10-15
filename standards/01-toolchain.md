@@ -15,9 +15,35 @@ word, a compiler option newer than its TypeScript. A test image on an older Deno
 `erasableSyntaxOnly` and passed code the production version refused. On Node, `tsc` is a pinned
 dependency (TC-3) and refuses an option it does not know, so that half does not apply.
 
-**Enforced by:** Engineer, partly: `engine-strict=true` in `.npmrc` makes an install on the wrong
-Node fail. Missing Engineer control: a test that reads every place the version is named and fails
-when they differ. See also CP-3.
+**Enforced by:** Engineer, where the environment is a file (TC-9): the image pins the runtime once,
+and everything runs in it. `engine-strict=true` in `.npmrc` makes an install on the wrong Node
+fail. Missing Engineer control: a test that reads every place the version is still named (the
+image, `engines`, a version file) and fails when they differ. See also CP-3.
+
+### TC-9 (MUST) The environment is defined in files, and a workstation needs only Docker.
+A `Dockerfile` pins everything the project needs to build, check, test and run: the base image by
+digest, the runtime, OS packages and tools (git, a database client) at exact versions, and the
+dependencies from the frozen lockfile (TC-3). Where more than one container is involved — a
+database for the tests (TS-2), a service and its fakes — a compose file names them. Every check and
+test runs through these files, on a workstation and in CI alike, with the same command (TC-5); a
+README's prerequisites are Docker and nothing else. Development and test images get names of their
+own (DB-2), and a check rebuilds the image in the same command that runs it (TS-8).
+
+**Why:** a project that leans on what the workstation happens to have runs differently on every
+workstation, and differently again in CI. The machine that wrote this standard's examples had a
+Node eight major versions behind the project; an agent's interactive shell ran a different `grep`
+from the one its scripts ran (AG-6); and the examples' git-driven tools went untested for exactly
+as long as git was not part of their environment. The environment as a file also gives the rules
+that need one somewhere to live: the network cut off for tests (TS-1), the runtime pinned once
+(TC-1).
+
+**Enforced by:** Engineer — CI runs the compose service and nothing else, so a dependency the files
+do not declare fails there. Missing Engineer control: a check that the README, the CI workflow and
+the scripts invoke no tool on the host but `docker` and `git`.
+
+**Prior art:** development containers (the Dev Container specification); hermetic builds (Bazel).
+
+**Example:** [`Dockerfile`](../examples/Dockerfile), [`compose.yaml`](../examples/compose.yaml).
 
 ### TC-2 (MUST) Write only TypeScript that a type-stripper can run.
 No enums, namespaces, constructor parameter properties (`constructor(readonly x: T)`) or other
@@ -63,9 +89,10 @@ had noticed them.
 **Enforced by:** Engineer — package manager configuration, committed.
 
 ### TC-5 (MUST) One command runs every check, and CI runs exactly that command.
-Formatting check, lint, type check (`tsc --noEmit`) and tests, in one script (`npm run check`). A
-check that runs only in an editor, only in an agent's skill or only on one machine is skipped
-everywhere else. CI's required status is that command's exit status.
+Formatting check, lint, type check (`tsc --noEmit`) and tests, in one script (`npm run check`), run
+in the project's environment (TC-9): `docker compose run --build --rm check`. A check that runs
+only in an editor, only in an agent's skill or only on one machine is skipped everywhere else. CI's
+required status is that command's exit status.
 
 **Why:** a check is only a control where it cannot be skipped.
 

@@ -1,0 +1,4 @@
+# The examples' image is built from the repository root (examples/Dockerfile).
+**/node_modules
+claude-notes.md
+.git/info/forbidden-words

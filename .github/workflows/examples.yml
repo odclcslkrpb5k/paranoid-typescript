@@ -3,16 +3,12 @@ name: examples
 on:
   push:
     branches: [main]
-    paths: ["examples/**", ".github/workflows/examples.yml"]
+    paths: ["examples/**", ".dockerignore", ".github/workflows/examples.yml"]
   pull_request:
-    paths: ["examples/**", ".github/workflows/examples.yml"]
+    paths: ["examples/**", ".dockerignore", ".github/workflows/examples.yml"]
 
 permissions:
   contents: read
-
-env:
-  # The same image the examples are developed in (TC-1), pinned by digest so a retag cannot change it.
-  IMAGE: node:24.22.0-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
 
 jobs:
   check:
@@ -23,17 +19,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install from the lockfile, and verify registry signatures (TC-3, TC-7)
-        run: >
-          docker run --rm -u "$(id -u):$(id -g)" -e npm_config_cache=/tmp/.npm
-          -v "$PWD/examples:/w" -w /w "$IMAGE"
-          sh -c "npm ci && npm audit signatures"
-      - name: Run every check with no network, so no test can reach a live system (TS-1)
-        run: >
-          docker run --rm --network none -u "$(id -u):$(id -g)"
-          -v "$PWD/examples:/w" -w /w "$IMAGE" npm run check
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: examples/.node-version
-      - name: Hidden characters across the whole repository (needs git, which the image lacks)
-        run: node examples/tools/hidden-chars.ts
+      # The same service a workstation runs (TC-9): the image build installs from the lockfile and
+      # verifies registry signatures (TC-3, TC-7); the check itself runs with no network (TS-1).
+      - name: Check, in the examples' own environment
+        run: docker compose --file examples/compose.yaml run --build --rm check
