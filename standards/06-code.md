@@ -66,6 +66,30 @@ path that bypasses it.
 **Enforced by:** Engineer, with ER-3: only the adapter may import the system's client, and the
 facade is the adapter's only export for writes.
 
+## Immutability
+
+### CD-8 (SHOULD) Values are immutable once built. (PROPOSED)
+Parse functions return `readonly` types: `readonly` fields, `ReadonlyArray`, `ReadonlyMap`. Domain
+types are declared the same way, and a change makes a new value rather than editing one in place.
+State that must change lives in one owner (a store, a class with `private` fields) and is never
+edited in place across an `await` that another task could interleave with. Module-level constant
+records are `as const`. `readonly` is shallow: a `readonly` field holding a mutable object protects
+the reference, not the object, so nested types are declared readonly too. Where a library demands a
+mutable array, copy at that boundary rather than cast (a cast is a finding under BD-2).
+
+**Why:** JavaScript has no data races, but it does interleave at every `await`. A value edited in
+place by one task while another holds it, or edited inside a retry loop so the second attempt sends
+what the first changed, is a defect no type checker sees unless the type says the value cannot
+change.
+
+**Enforced by:** Engineer for declared types — `readonly` refuses an assignment at compile time;
+LN-7's `prefer-readonly` covers class fields. Missing Engineer control: typescript-eslint's
+`prefer-readonly-parameter-types`, which is known to be noisy on library types; adopting it waits
+on a measurement of its cost on a real project.
+
+**Prior art:** immutable data in functional programming; the `readonly` modifiers TypeScript added
+for this purpose.
+
 ## Source hygiene
 
 ### CD-7 (SHOULD) A hidden character in source is written as an escape, and a test fails on a literal one.

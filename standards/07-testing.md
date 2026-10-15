@@ -195,6 +195,25 @@ removes every other cause from its copy of the fixture.
 **Enforced by:** Administer, in review. Missing Engineer control: a fixture builder that makes a
 clean fixture plus exactly one named cause, so a cause's test cannot inherit the others.
 
+### TS-16 (SHOULD) Every parser and brand parse function has property-based tests. (PROPOSED)
+Generate inputs rather than only writing them: arbitrary JSON, wrong types, extreme and special
+numbers (`NaN`, `-0`, `2**53`), long and unusual strings (lone surrogates, control characters,
+hidden characters), deep nesting. Assert the properties that must hold for every input: the parser
+never throws and always returns a `Result` (ER-1); everything a generator of valid values produces
+is accepted; and where there is a serializer, parsing what it wrote gives back the same value. Keep
+each failing case the tool finds as an ordinary fixture.
+
+**Why:** a fixture written by hand covers the cases its author thought of, and an agent thinks of
+the same ones each time. Recorded fixtures (TS-11) cover what real systems send; mutation testing
+(TS-5) measures whether the tests catch bugs. Generated inputs cover what neither does: the input
+nobody imagined.
+
+**Enforced by:** Engineer — the property tests, with a fixed seed in CI and a varying one in a
+scheduled run that records its seed, so any failure reproduces. Missing Engineer control: a test
+that fails when an exported parse function has no property test.
+
+**Prior art:** QuickCheck (Koen Claessen and John Hughes, 2000); fast-check for TypeScript.
+
 ## Open questions
 
 - **Test runner:** `node:test` or Vitest. Either needs TS-3's leak check added.

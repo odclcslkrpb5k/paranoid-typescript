@@ -81,6 +81,24 @@ spends a word on it.
 **Enforced by:** Engineer — the formatter's check mode in TC-5. AG-5 covers the formatter reflowing
 files it should not touch.
 
+### TC-7 (SHOULD) A new dependency is a review finding until justified. (PROPOSED)
+The gate lists every package a change adds to the lockfile, direct and transitive, with its
+version; review justifies each one, and the default answer is not to add it. On first adoption,
+review only what each change adds, not the whole existing tree, or the first review is unreadable
+and gets rubber-stamped. The listing is only as good as the lockfile is frozen (TC-3). CI verifies
+registry signatures and provenance where the registry offers them (`npm audit signatures`).
+
+**Why:** every dependency is code that runs with all of the process's permissions. In Node they
+cannot be confined per library: the permission model (DE-10) applies to the whole process, so the
+only per-library control is not installing the library. A transitive addition is invisible in a
+`package.json` diff and obvious in a lockfile listing.
+
+**Enforced by:** Engineer for the listing and the signature check; Administer for the judgement.
+Missing Engineer control: a gate that refuses a lockfile addition with no justification recorded
+beside it (a short file of approved packages, read from the base as well as the tree, SH-10).
+
+**Prior art:** dependency review in GitHub and similar platforms; npm provenance (Sigstore).
+
 ## Open questions
 
 - **Formatter:** Prettier or Biome. Either works, since lint is typescript-eslint regardless;
