@@ -40,6 +40,12 @@ def staged_text(path: str) -> str:
     return git("show", f":{path}")
 
 
+def staged_is_binary(path: str) -> bool:
+    # Git's own test: a NUL in the first 8000 bytes. A PNG's bytes decode to stray U+00A0s.
+    head = subprocess.run(["git", "show", f":{path}"], capture_output=True, check=True).stdout
+    return b"\0" in head[:8000]
+
+
 def tree_markdown(rev: str) -> dict[str, str]:
     names = [p for p in git("ls-tree", "-r", "-z", "--name-only", rev).split("\0") if p]
     return {p: git("show", f"{rev}:{p}") for p in names if p.endswith(".md")}
@@ -134,7 +140,7 @@ HIDDEN = re.compile("[\u00a0\u00ad\u061c\u180e\u200b-\u200f\u2028\u2029\u202a-\u
                     "\u2066-\u2069\ufeff\U000e0000-\U000e007f]")
 # split("\n"), not splitlines(): splitlines() breaks at U+2028 and would hide the very character.
 tracked = [p for p in git("ls-files", "-z", "--cached").split("\0") if p]
-for path in tracked:
+for path in (p for p in tracked if not staged_is_binary(p)):
     for n, line in enumerate(staged_text(path).split("\n"), 1):
         m = HIDDEN.search(line)
         if m:
