@@ -130,7 +130,8 @@ for path, text in docs.items():
             problems.append(f"{path}: {rule} is Administer but names no missing Engineer control")
 
 # Hidden characters (CD-7): invisible in review, so they appear only as escapes.
-HIDDEN = re.compile("[\u00a0\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060\u2066-\u2069\ufeff]")
+HIDDEN = re.compile("[\u00a0\u00ad\u061c\u180e\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060"
+                    "\u2066-\u2069\ufeff\U000e0000-\U000e007f]")
 # split("\n"), not splitlines(): splitlines() breaks at U+2028 and would hide the very character.
 tracked = [p for p in git("ls-files", "-z", "--cached").split("\0") if p]
 for path in tracked:

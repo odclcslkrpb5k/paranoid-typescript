@@ -31,7 +31,8 @@ Log keys, routes, operation names and codes. An error names the route, not the p
 the message; never a response body. A comparison that explains a difference names its kind from a
 closed set (TS-12), which cannot carry a value. A refusal from another system is described by the
 request members it names, never by its messages: validation frameworks' messages quote the value
-sent.
+sent. A member path names only keys the schema declares: a key of a record or map is the sender's
+data (a username, a token), however much it looks like a member name.
 
 **Why:** logs and alerts travel further than the data's own store, to people and systems with no
 right to it. URLs carried account numbers into one service's error messages.

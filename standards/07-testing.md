@@ -35,12 +35,14 @@ against the real engine could pin the fix.
 ### TS-3 (SHOULD) The suite fails a test that leaks a timer, a socket or a pool connection. (PROPOSED)
 An `afterEach` (or a global teardown) asserts that every database pool is drained, no timer or
 interval is pending and no server is listening. In Node, compare `process.getActiveResourcesInfo()`
-before and after each test, allowing a short settling window for handles already closing, and prove
-the check can fail with a fixture that leaks on purpose. What it cannot see: Node reports only
-handles that keep the event loop alive, so an `unref()`'d timer or socket is invisible. What it
-sees that is not a leak: Node's `fetch` keeps connections open for reuse, and a test server in the
-same process holds its side of each, so a server under test closes its connections (`Connection:
-close`) rather than have the pool read as the test's leak.
+before and after each test, and prove the check can fail with fixtures that leak on purpose. Judge
+timers at once — a cleared timer is gone immediately, so a settling window only lets a short leak
+through — and give sockets and servers a short window, both to finish closing and to appear: a
+server is listed only once its `listen` completes. What it cannot see: Node reports only handles
+that keep the event loop alive, so an `unref()`'d timer or socket is invisible. What it sees that
+is not a leak: Node's `fetch` keeps connections open for reuse, and a test server in the same
+process holds its side of each, so a server under test closes its connections (`Connection: close`)
+rather than have the pool read as the test's leak.
 
 **Why:** a leaked handle is usually a missing `await` or a missing `finally`, and in production it
 is a slow resource leak or a hang on shutdown. Neither `node:test` nor Vitest fails an individual
@@ -131,8 +133,10 @@ suites in one ship ran a tree that was already red.
 
 ### TS-9 (SHOULD) Test an outbound HTTP client against a loopback server, not only through a fake of its own interface.
 Start a server on port 0, with the base URL and time budget as parameters. A handler that never
-answers hangs shutdown, so answer late rather than never. A broken stream that must deliver part of
-a body and then fail is built in the stream's `pull()`; erroring in `start()` delivers nothing.
+answers hangs shutdown, so answer late rather than never. Run the suite with a per-test timeout: a
+deadline regression makes a test hang rather than fail, and without one the run waits for the CI
+job's own limit. A broken stream that must deliver part of a body and then fail is built in the
+stream's `pull()`; erroring in `start()` delivers nothing.
 
 **Why:** a fake of the transport leaves the transport untested. A renamed header, a dropped timeout
 and a widened URL pattern all passed until the client had a loopback test.

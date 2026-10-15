@@ -55,7 +55,9 @@ it throws, and returns a `Result`.
   and call anything else unexpected, never the system's failure: a bug in your own row reader must
   not read as a database outage. An errno the runtime has no class for (`ENOSPC`, `EIO`) arrives as
   a plain `Error` whose `code` is the errno; a check limited to `instanceof` calls a full disk
-  "unexpected".
+  "unexpected". A class alone can mislead: `fetch` throws `TypeError` both for a network failure
+  (with a `cause`) and for a request it refuses to send (credentials in the URL, a bad header — no
+  `cause`), and only the first is an outage.
 - **An adapter may throw where a framework needs it.** A database driver that rolls a transaction
   back only when its callback throws; a scheduler that records a cycle as failed only when its
   callback throws. There the adapter turns an error `Result` into a throw to get the behaviour, and
