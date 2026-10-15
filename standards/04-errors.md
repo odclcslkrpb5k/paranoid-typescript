@@ -30,6 +30,8 @@ LN-6 forces use; ER-2 to ER-4's lint rules confine `throw` and `catch`.
 Effect in TypeScript. Whether to use a library or a type of about thirty lines is open; projects so
 far have used their own, with a lint plugin.
 
+**Example:** [`src/result.ts`](../examples/src/result.ts).
+
 ### ER-2 (MUST) `panic()` is the only `throw`, for what the types rule out.
 A broken invariant — a bug in this program, never a failure of something it depends on — calls
 `panic(message)`, which throws a `Panic`. The `default` of an exhaustive switch calls
@@ -77,10 +79,14 @@ a broken invariant.
 **Prior art:** ports and adapters (hexagonal architecture, Alistair Cockburn); the anti-corruption
 layer of Domain-Driven Design (Eric Evans).
 
+**Example:** [`src/adapters/http.ts`](../examples/src/adapters/http.ts).
+
 ### ER-4 (MUST) Built-ins that throw are called through wrappers that return a `Result`.
 `JSON.parse`, `new URL`, `BigInt(...)`, `decodeURIComponent`, `atob`, `structuredClone`,
 `Response.prototype.json` and their kind live in one small module of wrappers, each returning a
-`Result` (and, for parsing, taking a schema: BD-1).
+`Result` (and, for parsing, taking a schema: BD-1). Prefer a built-in's own non-throwing form where
+the runtime has one: `URL.parse` answers `null`, so its wrapper needs no `try`;
+`import.meta.dirname` gives a module's directory without building a `URL`.
 
 **Why:** `JSON.parse` throwing on a malformed body looks, at the call site, exactly like a line
 that cannot fail. A wrapper puts the failure in the type, where the caller must handle it.
@@ -88,6 +94,8 @@ that cannot fail. A wrapper puts the failure in the type, where the caller must 
 **Enforced by:** Engineer — `no-restricted-globals` and `no-restricted-properties` outside the
 wrapper module. The list is never complete; review adds to it when a new throwing built-in shows
 up.
+
+**Example:** [`src/adapters/builtins.ts`](../examples/src/adapters/builtins.ts).
 
 ### ER-5 (MUST) Every entry point keeps a counted catch-all.
 "Returns a `Result`" does not mean "never throws": a bug, a `Panic`, or a throw from a library the

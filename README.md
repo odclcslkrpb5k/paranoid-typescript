@@ -78,6 +78,10 @@ project has the thing they describe: a service, a database, a deployment of its 
 particular describes one way of deploying that has been used in production and works well. It is
 not the only way, and a project that deploys differently takes its principles, not its commands.
 
+[`examples/`](examples/) holds reference implementations of many rules, held to the standard
+themselves, with tests; a rule that has one links to it in an `Example:` line. They show one way to
+meet a rule, not the only one.
+
 ## Reading a rule
 
     ### TC-3 (MUST) One sentence stating the rule.

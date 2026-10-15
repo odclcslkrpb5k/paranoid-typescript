@@ -71,6 +71,9 @@ everywhere else. CI's required status is that command's exit status.
 
 **Enforced by:** Engineer — a required CI status on the default branch.
 
+**Example:** [`package.json`](../examples/package.json),
+[`../.github/workflows/examples.yml`](../examples/../.github/workflows/examples.yml).
+
 ### TC-6 (MUST) Format with a formatter, and fail the check on unformatted code.
 Which formatter (Prettier, Biome, dprint) is the project's choice; arguing style is not. Line width
 100 is a reasonable default.
@@ -98,6 +101,18 @@ Missing Engineer control: a gate that refuses a lockfile addition with no justif
 beside it (a short file of approved packages, read from the base as well as the tree, SH-10).
 
 **Prior art:** dependency review in GitHub and similar platforms; npm provenance (Sigstore).
+
+### TC-8 (MUST) Pin TypeScript to a version the type-aware linter supports.
+Check the linter's peer dependency range before moving TypeScript. In October 2026
+typescript-eslint supports TypeScript below 6.1, while npm's `latest` TypeScript is 7.0, the native
+port, so a project on this standard pins 6.0.x until the linter catches up.
+
+**Why:** type-aware lint (chapter 03) is half of this standard's machine checking. A TypeScript the
+linter cannot load either fails the install or, with peer checks bypassed, runs lint on a compiler
+it was not built for.
+
+**Enforced by:** Engineer — npm refuses to install a peer dependency outside its range (`ERESOLVE`)
+unless forced; never pass `--force` or `--legacy-peer-deps` to get past it.
 
 ## Open questions
 

@@ -100,10 +100,14 @@ appear in source only as escapes (`\u00a0`). Where text needs one, build it or w
 `\u00a0` typed into an edit lands as a literal no-break space, invisible in review; `\u2028` in a
 regular expression lands as a line terminator, a syntax error. ESLint's `no-irregular-whitespace`
 skips string literals by default, which is where most of these land, and a line terminator inside a
-regex is a parse error before any rule runs.
+regex is a parse error before any rule runs. This standard's own repository met it twice: once in
+the text of this rule, and once in the regular expression of the example tool that enforces it.
 
 **Enforced by:** Engineer — a test that scans the repository's source for literal hidden
 characters, and a script that rewrites them as escapes.
 
 **Prior art:** the "Trojan Source" bidirectional-text attacks (CVE-2021-42574) are the hostile
 version of the same blindness.
+
+**Example:** [`tools/hidden-chars.ts`](../examples/tools/hidden-chars.ts).
+

@@ -17,6 +17,8 @@ backstop.
 
 **Prior art:** typescript-eslint's `strict-type-checked` shared config.
 
+**Example:** [`eslint.config.js`](../examples/eslint.config.js).
+
 ### LN-2 (MUST) No escape hatches.
 - `no-explicit-any`, and every `no-unsafe-*` rule in the preset (`assignment`, `call`,
   `member-access`, `return`, `argument` and the rest). `JSON.parse` and similar calls return an
@@ -37,19 +39,26 @@ coercions lint cannot judge.
 ### LN-3 (MUST) Every switch over a union is exhaustive, and a `default` does not count.
 `switch-exhaustiveness-check` (an addition to the preset) with `considerDefaultExhaustiveForUnions:
 false`, and the `default` branch of a switch over a union calls `unreachable(x)` (ER-2), whose
-parameter is `never`.
+parameter is `never`. The rule treats `string | undefined` as a union too, so a switch over an
+optional string needs `?? ""` or a `case undefined`; its `default` does not cover the `undefined`.
 
 **Why:** adding a variant to a union becomes a compile-time list of every place that must handle
 it. This is the property Rust's `match` is usually the argument for.
 
-**Prior art:** "make illegal states unrepresentable" (Yaron Minsky).
-
 **Enforced by:** Engineer.
+
+**Prior art:** "make illegal states unrepresentable" (Yaron Minsky).
 
 ### LN-4 (MUST) Every promise is awaited, returned, or handed to something that handles it.
 `no-floating-promises`, `no-misused-promises`, `return-await` (`in-try-catch` or `always`),
 `require-await`, and the addition `promise-function-async`, so a function that returns a promise is
-`async` and cannot also throw synchronously.
+`async` and cannot also throw synchronously. Two interactions to configure, not suppress:
+- A test runner whose `test()` returns a promise it awaits itself (`node:test`) trips
+  `no-floating-promises` on every test. Name those functions in the rule's `allowForKnownSafeCalls`
+  rather than putting `void` before each.
+- `promise-function-async` and `require-await` cannot both be met by a function that returns an
+  already-settled promise, such as a test fake. Keep `promise-function-async`, which stops a
+  synchronous throw, and turn `require-await` off for those files only.
 
 **Why:** an unawaited promise is a failure nobody sees, and the commonest way to turn a failure
 into success (ER-6).
@@ -82,6 +91,9 @@ nothing until `Result` arrives at step 4, and then holds every new use from the 
 Engineer control: the typed `must-use-result` rule for the project's own `Result` described above.
 
 **Prior art:** Rust's `#[must_use]`.
+
+**Example:** [`lint/must-use-result.ts`](../examples/lint/must-use-result.ts),
+[`test/must-use-result.test.ts`](../examples/test/must-use-result.test.ts).
 
 ### LN-7 (SHOULD) Add a few rules the preset leaves out.
 `prefer-readonly`, `explicit-module-boundary-types`, `consistent-type-imports` and
@@ -116,7 +128,13 @@ lint rule is code, held to the same tests as any other, and each of its refusals
 **Why:** an architectural rule held only by review is re-argued in every change; one held by lint
 is settled once. A custom rule that is wrong fails open, silently, everywhere.
 
-**Enforced by:** Engineer.
+**Enforced by:** Engineer. Restricted-syntax rules match names, not types: a selector for
+`response.json()` also refuses any other zero-argument method called `json`, such as a test
+generator's. Missing Engineer control: typed rules that check the receiver, where a name-based
+selector misfires.
+
+**Example:** [`test/lint-config.test.ts`](../examples/test/lint-config.test.ts),
+[`test/fixtures/lint/violations.ts`](../examples/test/fixtures/lint/violations.ts).
 
 ## What lint cannot see
 

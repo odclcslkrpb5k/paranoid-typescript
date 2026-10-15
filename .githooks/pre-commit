@@ -2,7 +2,7 @@
 # Checks the staged standard before a commit. Enable once per clone:
 #   git config core.hooksPath .githooks
 # Refuses:
-# - an added line of 100 characters or more, except headings, Markdown table rows
+# - an added Markdown line of 100 characters or more, except headings, table rows
 #   and a lone unbreakable token such as a URL;
 # - a rule ID defined twice, or an ID defined at HEAD that is gone (IDs are permanent: retire,
 #   never delete);
@@ -52,15 +52,21 @@ def index_markdown() -> dict[str, str]:
 
 problems: list[str] = []
 
-# Long lines, judged only on lines this commit adds.
+# Long lines in Markdown, judged only on lines this commit adds; code is the formatter's to wrap.
+# Each file is diffed alone, so its one `+++` header comes before the first hunk: lines are read
+# only after it, and an added line that itself begins `++` is not mistaken for a header (SH-12).
 for path in staged_files():
+    if not path.endswith(".md"):
+        continue
     diff = git("diff", "--cached", "--no-color", "--no-ext-diff", "-U0", "--text", "--", path)
     number = 0
-    for line in diff.splitlines():
+    in_hunk = False
+    for line in diff.split("\n"):
         if line.startswith("@@"):
             hunk = re.search(r"\+(\d+)", line)
             number = int(hunk.group(1)) if hunk else 0
-        elif line.startswith("+") and not line.startswith("+++ "):
+            in_hunk = True
+        elif in_hunk and line.startswith("+"):
             text = line[1:]
             stripped = text.strip()
             unbreakable = stripped != "" and not re.search(r"\s", stripped)
@@ -137,7 +143,9 @@ for path in tracked:
 forbidden_file = pathlib.Path(git("rev-parse", "--git-path", "info/forbidden-words").strip())
 if forbidden_file.is_file():
     words = [w.strip() for w in forbidden_file.read_text(encoding="utf-8").splitlines()]
-    pattern = [re.compile(re.escape(w), re.I) for w in words if w and not w.startswith("#")]
+    # Whole words only: a short name can occur by chance inside base64, such as a lockfile hash.
+    pattern = [re.compile(rf"(?<![A-Za-z0-9]){re.escape(w)}(?![A-Za-z0-9])", re.I)
+               for w in words if w and not w.startswith("#")]
     for path in staged_files():
         content = path + "\n" + staged_text(path)
         for n, line in enumerate(content.splitlines()):

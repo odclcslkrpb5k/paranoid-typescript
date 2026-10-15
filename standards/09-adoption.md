@@ -41,6 +41,8 @@ that; no Engineer control for it is known.
 
 **Prior art:** ESLint bulk suppressions (ESLint 9.24); betterer; the general "ratchet" technique.
 
+**Example:** [`tools/tsc-baseline.ts`](../examples/tools/tsc-baseline.ts).
+
 ### AD-3 (MUST) Compiler flags first; retake the lint baseline after every compiler change.
 Typed lint rules read the compiler's types, so a compiler flag changes what they report. Lint the
 whole project with and without each flag before turning it on.

@@ -286,6 +286,8 @@ retry settings and compares it with the deployment's grace period (TS-7). Missin
 a lint rule refusing a call to `fetch` or a client method without a `signal` argument, outside
 tests.
 
+**Example:** [`src/adapters/http.ts`](../examples/src/adapters/http.ts).
+
 ### SV-21 (SHOULD) Retry only what is transient and safe to repeat, a bounded number of times, with exponential backoff and jitter; use the other side's idempotency key wherever it offers one.
 A retry is for a failure the other side calls transient (a network error before sending, 429, 503,
 and the statuses its documentation names) on an operation that is safe to repeat: a read, or a

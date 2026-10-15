@@ -34,7 +34,13 @@ against the real engine could pin the fix.
 
 ### TS-3 (SHOULD) The suite fails a test that leaks a timer, a socket or a pool connection. (PROPOSED)
 An `afterEach` (or a global teardown) asserts that every database pool is drained, no timer or
-interval is pending and no server is listening.
+interval is pending and no server is listening. In Node, compare `process.getActiveResourcesInfo()`
+before and after each test, allowing a short settling window for handles already closing, and prove
+the check can fail with a fixture that leaks on purpose. What it cannot see: Node reports only
+handles that keep the event loop alive, so an `unref()`'d timer or socket is invisible. What it
+sees that is not a leak: Node's `fetch` keeps connections open for reuse, and a test server in the
+same process holds its side of each, so a server under test closes its connections (`Connection:
+close`) rather than have the pool read as the test's leak.
 
 **Why:** a leaked handle is usually a missing `await` or a missing `finally`, and in production it
 is a slow resource leak or a hang on shutdown. Neither `node:test` nor Vitest fails an individual
@@ -43,6 +49,9 @@ test for a leaked handle out of the box (check your version: runners add diagnos
 **Enforced by:** Engineer — the teardown assertion.
 
 **Prior art:** Deno's test sanitizers (resource, op and exit sanitizers).
+
+**Example:** [`test/support/leaks.ts`](../examples/test/support/leaks.ts),
+[`test/meta.test.ts`](../examples/test/meta.test.ts).
 
 ## What a test must prove
 
@@ -72,7 +81,9 @@ Judge a mutant by every test that exercises the guarded code, not only the file 
 mutant behind an earlier guard that already rules its case out is equivalent and survives: record
 it as equivalent, naming the guard, rather than count it caught. A mutant must be able to fail the
 test at all: a locale fix tested in a harness that already clears the locale, or a "connection
-refused" path aimed at a port the runtime refuses before connecting, proves nothing.
+refused" path aimed at a port the runtime refuses before connecting, proves nothing; nor does a
+test runner started from inside a test to prove a check fails, if it inherits the parent's
+`NODE_TEST_CONTEXT` and reports upward instead of failing.
 
 **Why:** a test written from a report restates the report's happy path. In one ship, three of six
 regression tests passed with their bug reinstated. Restoring from git once discarded eight
@@ -129,6 +140,8 @@ and a widened URL pattern all passed until the client had a loopback test.
 **Enforced by:** Administer, in review. Missing Engineer control: a test that fails when an adapter
 calling `fetch` has no test that starts a loopback server.
 
+**Example:** [`test/http.test.ts`](../examples/test/http.test.ts).
+
 ### TS-10 (SHOULD) The suite reports no skipped tests.
 A test that cannot run where the suite runs — it needs git, a browser, a tool the test image lacks
 — lives in its own directory, which the main run excludes and the gate runs where it can. A skip
@@ -176,6 +189,8 @@ untyped spreads or `Object.assign`.
 
 **Enforced by:** Engineer, once LN-6 exists (a discarded `Result` in a test is then an error).
 
+**Example:** [`test/support/assert.ts`](../examples/test/support/assert.ts).
+
 ### TS-14 (SHOULD) A layout test measures at the worst size the layout allows.
 Set the element to the narrowest the layout permits before measuring wraps and truncation, and
 assert what a reader would misread: a label broken across lines, a value cut to an ellipsis.
@@ -214,6 +229,11 @@ that fails when an exported parse function has no property test.
 
 **Prior art:** QuickCheck (Koen Claessen and John Hughes, 2000); fast-check for TypeScript.
 
+**Example:** [`test/builtins.test.ts`](../examples/test/builtins.test.ts),
+[`test/ids.test.ts`](../examples/test/ids.test.ts).
+
 ## Open questions
 
-- **Test runner:** `node:test` or Vitest. Either needs TS-3's leak check added.
+- **Test runner:** `node:test` or Vitest. Either needs TS-3's leak check added. The examples use
+  `node:test`: it ships with the runtime and needs no dependency (TC-7). Its cost is configuration:
+  LN-4's `allowForKnownSafeCalls`, and wrappers for tools that expect callback-style hooks.

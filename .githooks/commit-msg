@@ -3,6 +3,7 @@
 # A message is published with the commit and cannot be taken back without rewriting public
 # history, so it is checked as strictly as the files.
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -17,7 +18,8 @@ if not forbidden_file.is_file():
 words = [w.strip().lower() for w in forbidden_file.read_text(encoding="utf-8").splitlines()]
 words = [w for w in words if w and not w.startswith("#")]
 message = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace").lower()
-found = sorted({w for w in words if w in message})
+# Whole words only, as in pre-commit.
+found = sorted({w for w in words if re.search(rf"(?<![A-Za-z0-9]){re.escape(w)}(?![A-Za-z0-9])", message)})
 if found:
     print(f"commit-msg: the message holds {len(found)} forbidden name(s); reword it",
           file=sys.stderr)

@@ -35,6 +35,8 @@ types (BD-1), so on an existing codebase it comes after that step (AD-4).
 **Prior art:** TypeScript's own `--strict` family. The list overlaps heavily with the community
 `@tsconfig/strictest` base configuration, plus the erasable-syntax settings.
 
+**Example:** [`tsconfig.json`](../examples/tsconfig.json).
+
 ### CP-2 (MUST) Check everything: source, tests, scripts and tools, under the same settings.
 One `tsc --noEmit` run covers every TypeScript file in the repository, with no `exclude` for tests
 or tooling. The one exception is a directory of fixtures that exist to fail a check (CP-3, LN-9):
@@ -57,6 +59,9 @@ option it does not know (TC-1). Each passes the check while the protection is go
 that must fail notices.
 
 **Enforced by:** Engineer — the fixture test.
+
+**Example:** [`tools/check-fixtures.ts`](../examples/tools/check-fixtures.ts),
+[`test/fixtures/rejected/`](../examples/test/fixtures/rejected/).
 
 ### CP-4 (MUST) Run `.ts` directly, or emit, but decide which, and configure for it. (PROPOSED)
 To run sources directly on Node: `module` and `moduleResolution` `nodenext`, relative imports

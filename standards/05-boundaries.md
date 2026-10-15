@@ -35,14 +35,18 @@ outside is through a schema.
 **Prior art:** "Parse, don't validate" (Alexis King, 2019). HAZOP's guide words (no, more, less,
 part of, other than, reverse) make a checklist for reviewing a parser: what does it do with each?
 
+**Example:** [`src/adapters/builtins.ts`](../examples/src/adapters/builtins.ts).
+
 ### BD-2 (MUST) Every coercion a change adds is a finding until justified.
 `as`, `as unknown as`, `any`, non-null `!`, `Number(`, `String(`, `Boolean(`, `parseInt`,
 `parseFloat`, `!!`, unary `+`, `@ts-ignore`, a SQL `cast(` or `::` over caller input, `JSON.parse(`
-whose result is not received as `unknown`, and `Object.assign(` on a typed value (its type is `T &
-U`, so a plain number passes as a branded key). Each gets two questions. Is it justified: the
-source type, why it is not already the target, what happens to a value that does not convert? And
-is it in the right place: a coercion compensating for a type the code could have had is a defect —
-fix the type, the reader or the query. Survivors carry one line of justification.
+whose result is not received as `unknown`, `Object.assign(` on a typed value (its type is `T & U`,
+so a plain number passes as a branded key), and a user-defined type predicate (`x is T`) or
+assertion function (`asserts x is T`), which the compiler takes on trust exactly as it takes a
+cast, and which lint does not see. Each gets two questions. Is it justified: the source type, why
+it is not already the target, what happens to a value that does not convert? And is it in the right
+place: a coercion compensating for a type the code could have had is a defect — fix the type, the
+reader or the query. Survivors carry one line of justification.
 
 **Why:** on the first pass over one codebase, 21 of 54 coercions were removable, and four hid real
 bugs. Five plain-number keys survived a branding conversion inside `Object.assign`.
@@ -54,6 +58,8 @@ adds — and Administer for the judgement, in review (SH-3). To inventory a whol
 than one change, diff against git's empty tree (`git hash-object -t tree /dev/null` prints its id),
 so every line counts as added. No practical Engineer control for the judgement: whether a coercion
 is justified needs the meaning of the source type and the intent of the code.
+
+**Example:** [`tools/coercions.ts`](../examples/tools/coercions.ts).
 
 ### BD-3 (MUST NOT) Use `as unknown as`. Make the honest type and delete the cast.
 
@@ -115,6 +121,9 @@ project's own brand module, so another system's brand can only be imported.
 Design); "make illegal states unrepresentable" (Yaron Minsky); branded types are the common
 TypeScript idiom for them.
 
+**Example:** [`src/ids.ts`](../examples/src/ids.ts),
+[`test/fixtures/types/`](../examples/test/fixtures/types/).
+
 ### BD-6 (MUST) Know the time zone of every timestamp that comes from outside.
 A zone-less wall-clock timestamp from another system is kept as text in a branded type, parsed only
 with that system's declared zone, never the host's, and never pushed through `Date` or
@@ -141,8 +150,13 @@ imported, not reimplemented per file.
 Missing Engineer control: `no-restricted-syntax` refusing `typeof x === "object"` outside the
 helper's module.
 
+**Example:** [`src/records.ts`](../examples/src/records.ts).
+
 ## Open questions
 
 - **Schema library:** zod or valibot (or the owner's generated decoders). Choose on how well the
   types it infers read in error messages, since an agent reads those messages; and on whether it
-  can return problems as values without throwing (ER-1).
+  can return problems as values without throwing (ER-1). The examples use valibot: `safeParse`
+  returns problems as values, and its `brand` action mints branded types without the cast a
+  hand-written constructor needs (BD-5). Its issue messages quote the refused value, so they are
+  reduced to member paths before they go anywhere (DP-3).
