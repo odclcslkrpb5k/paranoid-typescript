@@ -270,21 +270,38 @@ What "deadline" means depends on what the call reaches:
 - **Subprocesses:** the child is killed when the deadline passes, and the caller checks the abort
   signal rather than the exit status, since an aborted child may report an ordinary exit (ER-10).
 
-A client's built-in default deadline counts only if a test pins that default. The worst case of one
-unit of work is the sum, over every outbound call on its path, of attempts × per-attempt deadline +
-backoff, counting each client library's own retries and defaults; it stays below the deployment's
-stop grace period (SV-4, DE-3).
+A client's built-in default deadline counts only if a test pins that default.
+
+The unit of work has one deadline of its own: a single abort signal created when the item is taken,
+passed to every outbound call on its path and to every sleep between attempts, so each attempt runs
+under whichever ends first, its own deadline or the item's. A test shows that the item's deadline,
+plus one write already in flight, fits inside the deployment's stop grace period (SV-4, DE-3).
+
+Until that signal exists, the worst case is a sum over the whole path of the unit of work, not over
+one client at a time: for every outbound call, attempts × per-attempt deadline + backoff, counting
+each client library's own retries and defaults, plus every deliberate sleep. One call without a
+deadline makes the sum unbounded, and then no grace period is long enough. Either way, the design
+absorbs a kill partway through an item: the item is not marked done, so it is retried (SV-5), and
+its writes either replace whole records (SV-16) or are settled by reading the system of record
+(SV-14).
 
 **Why:** a call with no deadline holds its unit of work for as long as the other side chooses, and
 a deploy's SIGTERM then kills it halfway. A client's defaults of 120 seconds a try and three tries
 came to about six minutes against a four-minute grace, bringing back the kill the deadline was
 meant to prevent. A loopback test caught a dropped timeout that fakes of the client's own interface
-had passed (TS-9).
+had passed (TS-9). Later, a worker whose contract test showed one client's worst case fitting its
+four-minute grace turned out, summed over an item's real path, to spend about eleven minutes in
+bounded calls across five services, and to make three calls with no deadline at all: two HTTP
+adapters with no timeout and a database driver with no statement timeout. Checking clients one at
+a time had hidden both the total and the gap.
 
 **Enforced by:** Engineer, partly: a contract test computes the worst case from the configured
-retry settings and compares it with the deployment's grace period (TS-7). Missing Engineer control:
-a lint rule refusing a call to `fetch` or a client method without a `signal` argument, outside
-tests.
+retry settings and compares it with the deployment's grace period (TS-7); a test of the item's
+deadline replaces it once the single signal exists. Missing Engineer control: a lint rule refusing
+a call to `fetch` or a client method without a `signal` argument, outside tests. It would have
+caught the two HTTP adapters, but not the database driver, whose bound is server-side
+configuration that no call site shows; a boot check that reads the session's `statement_timeout`
+and refuses zero covers that.
 
 **Example:** [`src/adapters/http.ts`](../examples/src/adapters/http.ts).
 
