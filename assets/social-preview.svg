@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1280" height="640" viewBox="0 0 1280 640">
+  <!--
+    The source of social-preview.png, the image GitHub shows when the repository is linked; it is
+    uploaded by hand under Settings > Social preview, so the PNG is what matters. Rendered with
+    `inkscape social-preview.svg -o social-preview.png`; the text needs Noto Sans and Source Code
+    Pro installed. Content stays 80 px inside each edge, since some sites crop the image.
+  -->
+  <rect width="1280" height="640" fill="#0d1b2e"/>
+  <image x="80" y="140" width="360" height="360" href="logo.svg" xlink:href="logo.svg"/>
+  <g fill="#ffffff" font-family="Noto Sans" font-weight="700" font-size="84">
+    <text x="500" y="272">Paranoid</text>
+    <text x="500" y="368">TypeScript</text>
+  </g>
+  <text x="502" y="430" fill="#97bdea" font-family="Noto Sans" font-size="32">
+    Strict TypeScript for code written by AI agents
+  </text>
+  <text x="502" y="486" fill="#5f9ade" font-family="Source Code Pro" font-size="20">
+    eliminate › substitute › engineer › administer › protect
+  </text>
+</svg>
