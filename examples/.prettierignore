@@ -1,0 +1,4 @@
+node_modules/
+package-lock.json
+# The lint fixture's markers sit at the ends of the lines they describe; reformatting moves them.
+test/fixtures/lint/
