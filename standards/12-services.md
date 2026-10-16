@@ -262,20 +262,35 @@ What "deadline" means depends on what the call reaches:
   deadline that ends there leaves the body unguarded.
 - **Databases:** a client-side deadline on acquiring a connection from the pool, where nothing has
   reached the server yet; and a server-side bound on the statement itself (`statement_timeout` and
-  `lock_timeout` in Postgres, or the engine's equivalent). A signal on the query alone does not
-  count: aborting on the client can leave the statement running and holding its locks, and inside a
-  transaction the caller no longer knows what happened. Migrations taken at boot under an advisory
-  lock (DB-4) wait on purpose, so they have a bound of their own, not the request deadline, or a
-  second instance booting during a long migration fails instead of waiting.
+  `lock_timeout` in Postgres; `SET STATEMENT max_statement_time=N FOR ...` in MariaDB; or the
+  engine's equivalent), with a test that a write blocked on a row lock is stopped and never
+  commits. A client-side query timeout does not count. Measured with mysql2 on MariaDB, it only
+  fires a callback: the statement runs on and can still commit, its connection stays checked out
+  so draining the pool waits behind it, and a lock wait can last as long as the server allows
+  (MariaDB's `lock_wait_timeout`, for metadata locks, defaults to a year). Keep a client timeout
+  only to notice silence, and destroy the connection when it fires. Migrations taken at boot under
+  an advisory lock (DB-4) wait on purpose, so they have a bound of their own, not the request
+  deadline, or a second instance booting during a long migration fails instead of waiting.
 - **Subprocesses:** the child is killed when the deadline passes, and the caller checks the abort
   signal rather than the exit status, since an aborted child may report an ordinary exit (ER-10).
+- **Clients that take no signal:** the call can only be raced against the deadline and abandoned.
+  It keeps running, and a paid API keeps billing it, so such calls are few and named, and the
+  process exits explicitly at the end of the drain rather than waiting for them to settle.
 
 A client's built-in default deadline counts only if a test pins that default.
 
 The unit of work has one deadline of its own: a single abort signal created when the item is taken,
 passed to every outbound call on its path and to every sleep between attempts, so each attempt runs
-under whichever ends first, its own deadline or the item's. A test shows that the item's deadline,
-plus one write already in flight, fits inside the deployment's stop grace period (SV-4, DE-3).
+under whichever ends first, its own deadline or the item's. Once it passes, no call starts and no
+read is waited for, but a write already in flight is always waited for, since abandoning it leaves
+its outcome unknown. A test names every part of the exit budget and shows that
+
+    item deadline + longest in-flight write + marking the item done + exit  ≤  stop grace period
+
+(SV-4, DE-3), and fails on any part with no bound of its own. The exit counts: flushing logs and
+sending to a monitoring service are outbound calls too. The deadline is chosen from the measured
+duration of real items, with room to spare, and an item that passes half of it is logged, so a
+deadline growing too tight shows up before items fail on it.
 
 Until that signal exists, the worst case is a sum over the whole path of the unit of work, not over
 one client at a time: for every outbound call, attempts × per-attempt deadline + backoff, counting
@@ -293,15 +308,18 @@ had passed (TS-9). Later, a worker whose contract test showed one client's worst
 four-minute grace turned out, summed over an item's real path, to spend about eleven minutes in
 bounded calls across five services, and to make three calls with no deadline at all: two HTTP
 adapters with no timeout and a database driver with no statement timeout. Checking clients one at
-a time had hidden both the total and the gap.
+a time had hidden both the total and the gap. When the single deadline was built, its first draft
+summed exactly to the grace and left nothing for the exit, which only review caught; and the exit
+itself proved unbounded, because the monitoring client's sends had no timeout. The longest of about
+17,000 measured items took 13 seconds, against the 90-second deadline chosen.
 
-**Enforced by:** Engineer, partly: a contract test computes the worst case from the configured
-retry settings and compares it with the deployment's grace period (TS-7); a test of the item's
-deadline replaces it once the single signal exists. Missing Engineer control: a lint rule refusing
+**Enforced by:** Engineer, partly: the exit-budget test above, or until the single signal exists, a
+contract test that computes the worst case from the configured retry settings and compares it with
+the deployment's grace period (TS-7); and a test against a real database that a lock-blocked write
+is stopped by the server and never commits (TS-11). Missing Engineer control: a lint rule refusing
 a call to `fetch` or a client method without a `signal` argument, outside tests. It would have
-caught the two HTTP adapters, but not the database driver, whose bound is server-side
-configuration that no call site shows; a boot check that reads the session's `statement_timeout`
-and refuses zero covers that.
+caught the two HTTP adapters, but not the database driver, whose bound is set on the server or in
+the statement, where no call site shows it.
 
 **Example:** [`src/adapters/http.ts`](../examples/src/adapters/http.ts).
 
