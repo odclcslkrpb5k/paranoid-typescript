@@ -92,10 +92,13 @@ meet a rule, not the only one.
 [`appendices/`](appendices/) carries the core into other languages and frameworks, one file each:
 
 - [Paranoid Python (Django)](appendices/python-django.md)
+- [Paranoid C (GTK 3)](appendices/c-gtk.md), for Linux desktop applications
 
 An appendix defines no rules of its own. It cites the core rules it serves and says, for each, what
 meets it in that language, where the language leaves a gap, and where a framework forces a
-deviation, with its reason. A core rule an appendix does not mention applies as written. Each names
+deviation, with its reason. A hazard the core's language cannot have, such as memory safety in C,
+gets a section of its own, judged on the same ladder. A core rule an appendix does not mention
+applies as written. Each names
 the tool versions its settings were checked against.
 
 ## Reading a rule
