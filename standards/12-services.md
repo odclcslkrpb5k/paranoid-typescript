@@ -316,7 +316,7 @@ itself proved unbounded, because the monitoring client's sends had no timeout. T
 **Enforced by:** Engineer, partly: the exit-budget test above, or until the single signal exists, a
 contract test that computes the worst case from the configured retry settings and compares it with
 the deployment's grace period (TS-7); and a test against a real database that a lock-blocked write
-is stopped by the server and never commits (TS-11). Missing Engineer control: a lint rule refusing
+is stopped by the server and never commits (TS-2). Missing Engineer control: a lint rule refusing
 a call to `fetch` or a client method without a `signal` argument, outside tests. It would have
 caught the two HTTP adapters, but not the database driver, whose bound is set on the server or in
 the statement, where no call site shows it.
