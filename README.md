@@ -87,6 +87,17 @@ not the only way, and a project that deploys differently takes its principles, n
 themselves, with tests; a rule that has one links to it in an `Example:` line. They show one way to
 meet a rule, not the only one.
 
+## Appendices
+
+[`appendices/`](appendices/) carries the core into other languages and frameworks, one file each:
+
+- [Paranoid Python (Django)](appendices/python-django.md)
+
+An appendix defines no rules of its own. It cites the core rules it serves and says, for each, what
+meets it in that language, where the language leaves a gap, and where a framework forces a
+deviation, with its reason. A core rule an appendix does not mention applies as written. Each names
+the tool versions its settings were checked against.
+
 ## Reading a rule
 
     ### TC-3 (MUST) One sentence stating the rule.

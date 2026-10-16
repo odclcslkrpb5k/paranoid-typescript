@@ -19,6 +19,10 @@ coherent and trustworthy.
   tightening wording or adding an Engineer control does not.
 - **One subject per commit**, and the commit body says what happened that makes the change right.
   Git history is the standard's changelog.
+- **Appendices carry the core into another language; they add no rules.** Every line cites the
+  core rule it serves, a tool setting is checked against a named version before it is written, and
+  what the core already says is linked, not restated. A lesson that holds in every language
+  belongs in the core, not in an appendix.
 - Lines stay under 100 characters (Markdown table rows and lone URLs exempt).
 - Enable the checks once per clone: `git config core.hooksPath .githooks`. The pre-commit hook
   refuses long lines, duplicated or deleted rule IDs, and references to IDs no chapter defines.
