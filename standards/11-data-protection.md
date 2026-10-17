@@ -32,10 +32,16 @@ the message; never a response body. A comparison that explains a difference name
 closed set (TS-12), which cannot carry a value. A refusal from another system is described by the
 request members it names, never by its messages: validation frameworks' messages quote the value
 sent. A member path names only keys the schema declares: a key of a record or map is the sender's
-data (a username, a token), however much it looks like a member name.
+data (a username, a token), however much it looks like a member name. A library's throwing
+constructor or validator may quote the value it refuses, even on the program's own data: call its
+non-throwing companion and return the program's own error, which names the kind of value and not
+the value (ER-4), with a test that a refusal's error carries no part of the input.
 
 **Why:** logs and alerts travel further than the data's own store, to people and systems with no
-right to it. URLs carried account numbers into one service's error messages.
+right to it. URLs carried account numbers into one service's error messages. Another built a date
+from its own records with a library constructor whose message quotes the text it refuses; its work
+loop records a thrown cause as text, so a malformed birth date would have reached monitoring.
+Review caught it before commit.
 
 **Enforced by:** Engineer, partly: ER-1's error type is built from the program's own words, so an
 error value cannot carry outside text unless someone puts it there. Administer for the rest.
