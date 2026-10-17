@@ -61,6 +61,24 @@ test("coercions lists what a change adds, in tracked and untracked files, and ex
   }
 });
 
+test("coercions reads files whose names git would quote or treat as a pathspec", () => {
+  const names = [":(glob)nothing.ts", "*.ts", 'q"x.ts', "sp ace.ts", "é.ts"];
+  const dir = repository(Object.fromEntries(names.map((name) => [name, "export {};\n"])));
+  try {
+    for (const name of names) {
+      writeFileSync(path.join(dir, name), "export {};\nexport const b = value as Thing;\n");
+    }
+    const result = run(dir, process.execPath, [path.join(tools, "coercions.ts"), "main"]);
+    assert.equal(result.status, 3, result.stderr);
+    assert.deepEqual(
+      result.stdout.trim().split("\n").sort(),
+      names.map((name) => `${name}:2: as-cast: export const b = value as Thing;`).sort(),
+    );
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
 test("coercions exits 0 when a change adds none, and 2 when it cannot diff", () => {
   const dir = repository({ "a.ts": "export const a = 1;\n" });
   try {

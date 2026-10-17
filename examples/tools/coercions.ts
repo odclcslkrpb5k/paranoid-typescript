@@ -11,6 +11,8 @@
  * How it reads a diff, each point a hole found in a diff-reading scanner (SH-12):
  * - file names come from `--name-only -z`, never from `+++` headers, which git quotes or suffixes;
  * - each file is diffed alone, with `--text`, so git never shows it only as "Binary files differ";
+ * - pathspecs are literal, so a file named `:(glob)x.ts` or `*.ts` names only itself, rather than
+ *   a pattern that matches other files or none;
  * - added lines are counted by each hunk's header, so an added line that itself begins `++` is
  *   still read as added, not mistaken for a header.
  * It matches one line at a time, so it is a list for a reviewer, not a parser: it skips comment
@@ -90,7 +92,7 @@ export function findCoercions(text: string): readonly string[] {
 function git(args: readonly string[]): string {
   return execFileSync("git", args, {
     encoding: "utf8",
-    env: { ...process.env, LC_ALL: "C" },
+    env: { ...process.env, LC_ALL: "C", GIT_LITERAL_PATHSPECS: "1" },
     maxBuffer: 64 * 1024 * 1024,
   });
 }
