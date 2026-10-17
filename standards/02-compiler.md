@@ -53,12 +53,17 @@ Looser rules for tests would leave most of the code under the weaker control.
 Keep one fixture per option in `tsconfig.json`: a file that must fail the check with that option on
 and pass with it off. A test runs each fixture both ways, and fails when an option has no fixture.
 
+Source vendored from another project (RP-4) is checked under the consumer's options, not its own,
+so its guarantees hold only if those options match. The consumer runs the library's fixtures in its
+own suite, and a test fails when its root configuration lacks one of the library's options or sets
+it differently, with a planted mismatch proving the test can fail (TS-7).
+
 **Why:** the settings file can claim a protection the checker does not give. An `extends` chain can
 override a flag, a later edit can drop one, and a runtime with a built-in checker can ignore an
 option it does not know (TC-1). Each passes the check while the protection is gone; only a fixture
 that must fail notices.
 
-**Enforced by:** Engineer — the fixture test.
+**Enforced by:** Engineer — the fixture test, and the consumer's comparison test.
 
 **Example:** [`tools/check-fixtures.ts`](../examples/tools/check-fixtures.ts),
 [`test/fixtures/rejected/`](../examples/test/fixtures/rejected/).
