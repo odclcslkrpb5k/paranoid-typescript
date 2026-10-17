@@ -20,6 +20,12 @@ until something has checked it. Casting it is lying to the compiler about it.
   change, because callers switch on it exhaustively. A schema whose members are all optional
   accepts any object, so it also requires the record itself: decode the envelope the answer comes
   in, and refuse one without the record, or with a record under a key other than the one asked for.
+- **Bound the depth of anything walked by recursion.** `JSON.parse` does not recurse, so it accepts
+  a body nested 100,000 deep; a hand-written decoder, copier or brand parse function that then
+  recurses overflows the stack at about 5,000 levels (Deno 2.9), and the `RangeError` escapes a
+  function that promises a `Result`. Walk without recursion, or refuse past a depth well above any
+  real record (64) as a value naming the path, and test with a body deeper than the bound. A schema
+  library walks only as deep as its schema, unless the schema is itself recursive.
 - **Keep decimals exact.** Money and other decimals are parsed from text, never through a float.
 - **Refuse only what no valid record could hold.** A parser of what the owner's own system returns
   refuses only what its column types or constraints rule out. One that refused a blank value the
@@ -35,6 +41,8 @@ to process; a cast had told the compiler it was fine. A decoder that skipped mis
 handed an answer of the shape `{ "<Type>": record }` and decoded it as an empty record; its test
 fixtures were the bare record, so the tests passed, and that empty record was the read half of a
 full-replace write. Review caught it from the other service's README.
+A record copier in an HTTP client overflowed the stack on `{"x":[[[…]]]}` nested 5,000 deep, a
+throw its caller's adapter did not expect; review found it.
 
 **Enforced by:** Engineer — LN-2 bans `as` and `any`, so the only way to get a typed value from
 outside is through a schema.
