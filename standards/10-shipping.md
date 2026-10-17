@@ -178,8 +178,14 @@ the digest list from the base as well as the tree (so one change cannot delete a
 value), and reads an allow list the inverse way (an entry counts only when both base and tree hold
 it). It scans the commit message too. Requirements the tool must meet:
 - Follow each hunk's line counts in a unified diff: an added line that reads `++ token` appears as
-  `+++ token`, and one taken for a file header is never scanned. Better, take file names from `git
-  diff --name-only -z` and diff each file alone, since git quotes or tab-suffixes unusual paths.
+  `+++ token`, and one taken for a file header is never scanned. Never take a file name from a
+  `+++` header: git ends one whose path holds a space with a tab, and C-quotes one holding a quote,
+  a backslash or a non-ASCII byte (`+++ "b/q\"x.md"`), so a reader that slices off `b/` carries the
+  tab or the quotes into the name, or skips the file. Take names from `git diff --name-only -z`,
+  diff each file alone, and pass `--literal-pathspecs` (or set `GIT_LITERAL_PATHSPECS=1`):
+  otherwise a file named `*.md` diffs every Markdown file, and one named `:(glob)x.md` matches
+  nothing and passes unscanned. Test with planted names: a quote, a space, a non-ASCII byte, a
+  glob, pathspec magic, and a line beginning `++`.
 - Diff with `--text` and grep with `-a`, under `LC_ALL=C`. Without them, git shows a file it judges
   binary (one with a NUL byte near its start) only as "Binary files differ", and GNU grep under a
   UTF-8 locale, meeting a byte that is not valid UTF-8, prints "binary file matches" and suppresses
@@ -193,7 +199,9 @@ it). It scans the commit message too. Requirements the tool must meet:
   locale the script must override.
 
 **Why:** a scan whose hits a person reads finds what that person notices. Each requirement above is
-a hole a review found in a scanner that was already in use.
+a hole a review found in a scanner that was already in use. Three repositories took names from
+`+++` headers, and in one a staged file named `q"x.md` passed its hook unchecked; this standard's
+own hook passed a file named `:(glob)zz.md`.
 
 **Enforced by:** Engineer — the scanner, in the hook and the gate. Patterns do not find personal
 data; that stays with review (DP-1).
