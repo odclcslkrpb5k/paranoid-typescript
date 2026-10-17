@@ -23,12 +23,18 @@ case: each repeated mistake needs its own, built once the mistake is seen.
 
 ### AG-2 (MUST) Never read a check's verdict through filtered output.
 See SH-11. An agent naturally pipes long output through `tail` or `grep` to save context, and in
-doing so replaces the check's exit status with the filter's.
+doing so replaces the check's exit status with the filter's. A wrapper does the same: a check run
+in the background is started as the check command alone, so the status reported when it finishes
+is the check's.
 
 **Why:** `tail` exits zero whatever the check did, and `grep` reports only whether it matched, so a
-failing check read through either can look like a pass.
+failing check read through either can look like a pass. An agent ran `check > log; echo exit $?`
+in the background, read the job's status, which was the `echo`'s and always zero, and pushed a
+change that aborted every failed file operation; the echoed line, unread, said 1. It was the third
+slip of the kind on that project.
 
-**Enforced by:** Engineer — the gate script judges exit statuses, so the agent never has to.
+**Enforced by:** Engineer — the gate script judges exit statuses, so the agent never has to; and
+Eliminate for background checks, where nothing stands between the check and its status.
 
 ### AG-3 (MUST) Report what was checked, and correct the record when wrong.
 See SH-7. When a claim made to a person or another session turns out wrong, tell everyone who was
