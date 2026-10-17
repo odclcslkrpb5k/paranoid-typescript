@@ -12,10 +12,14 @@ until something has checked it. Casting it is lying to the compiler about it.
   definition serves every consumer, and use the owner's decoder where it ships one.
 - **Parse only what you read.** A whole-record schema lets a change in a member nobody reads (a new
   enumeration value, a new timestamp format) stall every read. Cut the schema to the members the
-  code uses.
+  code uses. The exception is the read half of an update that replaces the whole record: decode the
+  whole contract, or a member the cut schema skipped is written back empty. Stalling on a contract
+  change is the safer failure there.
 - **Ignore unknown extra members; refuse a missing member, a wrong type and an unknown enumeration
   value.** An added field should break nobody. A new enumeration value should arrive as a code
-  change, because callers switch on it exhaustively.
+  change, because callers switch on it exhaustively. A schema whose members are all optional
+  accepts any object, so it also requires the record itself: decode the envelope the answer comes
+  in, and refuse one without the record, or with a record under a key other than the one asked for.
 - **Keep decimals exact.** Money and other decimals are parsed from text, never through a float.
 - **Refuse only what no valid record could hold.** A parser of what the owner's own system returns
   refuses only what its column types or constraints rule out. One that refused a blank value the
@@ -27,7 +31,10 @@ environment and configuration (SV-1); HTTP and SDK responses, parsed in the adap
 messages and command-line arguments.
 
 **Why:** a mistyped configuration constant once silently skipped every record a service was meant
-to process; a cast had told the compiler it was fine.
+to process; a cast had told the compiler it was fine. A decoder that skipped missing members was
+handed an answer of the shape `{ "<Type>": record }` and decoded it as an empty record; its test
+fixtures were the bare record, so the tests passed, and that empty record was the read half of a
+full-replace write. Review caught it from the other service's README.
 
 **Enforced by:** Engineer — LN-2 bans `as` and `any`, so the only way to get a typed value from
 outside is through a schema.
