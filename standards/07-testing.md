@@ -102,14 +102,20 @@ rather than across the whole codebase.
 ### TS-6 (SHOULD) A check that selects its own subject asserts which subject it selected.
 Name the tables, routes or files it found and compare them with the set it claims to cover, in both
 directions. Make an ambiguous match fail (assert exactly one match, never `.find`). A floor on the
-count goes after the assertions it protects. A gate that finds no tests to run fails.
+count goes after the assertions it protects. A gate that finds no tests to run fails. A
+third-party checker is such a check: its exit status says nothing about what it read, so the gate
+parses its report and compares the files it says it checked with the build's own list.
 
 **Why:** zero findings over zero subjects is the same green as zero findings over all of them. A
-floor passed twice while three of four statements went unchecked.
+floor passed twice while three of four statements went unchecked. A static analyzer given a
+directory where it expected a project file checked nothing and exited 0; another exited 0 with
+findings whenever it was asked for machine-readable output; a package index update that failed to
+download exited 0, and the install went ahead from stale indexes.
 
-**Enforced by:** Administer, in review. Missing Engineer control: a lint rule refusing `.find(`
-where a check selects its subjects, and a test runner setting that fails a run selecting no tests;
-whether the claimed set is the right one needs review.
+**Enforced by:** Administer, in review; Engineer where the gate compares a tool's report with the
+build's file list. Missing Engineer control: a lint rule refusing `.find(` where a check selects
+its subjects, and a test runner setting that fails a run selecting no tests; whether the claimed
+set is the right one needs review.
 
 ### TS-7 (MUST) Something fails when two files that have to agree stop agreeing.
 Production permissions against the paths the container mounts; the environment variables the code
