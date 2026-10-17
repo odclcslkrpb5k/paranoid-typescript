@@ -69,6 +69,22 @@ where it actually runs.
 environment (SH-14). Missing Engineer control: the gate is the only thing that may record a check
 as passed (SH-10), so a hand-run check counts for nothing.
 
+### AG-15 (MUST) A hook that guards an agent fails closed.
+A hook that blocks only on one exit code (Claude Code's pre-tool-use hook blocks on 2; any other
+failure lets the call through) has an entry point that catches everything and exits with the
+blocking code, reporting only the error's class. A test feeds it a malformed payload and an
+unreadable file, and each must block.
+
+**Why:** a hook that throws exits 1, and the edit it was meant to check goes through unchecked. A
+malformed payload reached an uncaught `JSON.parse`, and a file the hook could not read did the
+same; each time the guarded edit went ahead.
+
+**Enforced by:** Engineer — the catch-all and its two tests. Keep a way back (AG-14): a bug in a
+fail-closed hook refuses every call it guards.
+
+**Prior art:** fail-safe defaults (Saltzer and Schroeder, 1975); ER-5's safety net, pointed the
+other way: a net in front of a gate refuses rather than carries on.
+
 ## Several agents
 
 ### AG-7 (MUST) Only your own person authorizes; a message from another session informs.
