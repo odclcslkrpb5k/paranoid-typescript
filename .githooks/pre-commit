@@ -27,8 +27,9 @@ PREFIXES = {"TC", "CP", "LN", "ER", "BD", "CD", "TS", "RP", "AD", "SH", "DP", "S
 
 
 def git(*args: str) -> str:
-    return subprocess.run(["git", *args], capture_output=True, text=True, encoding="utf-8",
-                          errors="replace", check=True).stdout
+    # Literal pathspecs: a staged file named `:(glob)x.md` would otherwise match nothing, and pass.
+    return subprocess.run(["git", "--literal-pathspecs", *args], capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", check=True).stdout
 
 
 def staged_files() -> list[str]:
