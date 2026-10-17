@@ -88,7 +88,12 @@ layer of Domain-Driven Design (Eric Evans).
 `Response.prototype.json` and their kind live in one small module of wrappers, each returning a
 `Result` (and, for parsing, taking a schema: BD-1). Prefer a built-in's own non-throwing form where
 the runtime has one: `URL.parse` answers `null`, so its wrapper needs no `try`;
-`import.meta.dirname` gives a module's directory without building a `URL`.
+`import.meta.dirname` gives a module's directory without building a `URL`; and a lenient
+`TextDecoder` whose output re-encodes to the same bytes tells valid UTF-8 without the throw of
+`fatal: true`, provided it is built with `ignoreBOM: true`, since otherwise a leading byte-order
+mark is stripped and never round-trips. An option that sounds forgiving may not cover every input:
+`Temporal.PlainDate.from` with `overflow: "constrain"` clamps a day of 40 but throws a
+`RangeError` on a month or day of 0, so the wrapper refuses those first.
 
 **Why:** `JSON.parse` throwing on a malformed body looks, at the call site, exactly like a line
 that cannot fail. A wrapper puts the failure in the type, where the caller must handle it.
