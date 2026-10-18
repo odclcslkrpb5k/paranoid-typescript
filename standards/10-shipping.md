@@ -124,9 +124,10 @@ of the gate and of the full suite each passed against it from start to finish. I
 unless HEAD is the remote's main branch (or, resuming after a failed push, its one non-merge child
 already holding that tree). Every edit — the harvest and the review fixes included — comes before
 those final runs. Requirements the tool must meet, each learned from a hole a review found:
-- Compute the tree in a scratch index seeded with `git read-tree HEAD`, then `git add -A`. Never
-  seed it with a copy of the real index: git trusts a copied entry's size and modification time, so
-  a same-size edit made in the same second hashes as the old content. Never export the scratch
+- Compute the tree in a scratch index seeded with `git read-tree HEAD`, then `git add -A`, which
+  takes every untracked file not ignored, so SH-15's path check judges that tree. Never seed it
+  with a copy of the real index: git trusts a copied entry's size and modification time, so a
+  same-size edit made in the same second hashes as the old content. Never export the scratch
   `GIT_INDEX_FILE` to anything else.
 - Name the remote ref in full (`refs/remotes/origin/main`): a local branch called `origin/main`
   resolves first.
@@ -219,6 +220,35 @@ encoding failed open four ways — an invalid regex counted as no match, a last 
 newline was skipped, the file could edit away its own rule, a rename hid the old path.
 
 **Enforced by:** Engineer — the ship tool.
+
+### SH-15 (MUST) Every file a ship adds is one the change meant to add. (PROPOSED)
+A fugitive file is one that reached the repository by accident: test output, an agent's planning
+notes, a probe, a dump. It enters through a sweeping stage (`git add -A`, which SH-10's tree
+computation uses) or a missing ignore entry, and once pushed it stays in history (SH-6).
+- **Eliminate:** tools write generated output outside the work tree or into one ignored directory,
+  and an agent keeps its scratch files outside the repository.
+- **Engineer:** `.gitignore` ignores everything by default and re-admits the declared layout
+  (`/*`, then `!/src/`, `!/test/` and the rest of RP-7), so an untracked fugitive is invisible to
+  `git add -A`. The commit step lists every path added since the remote's main and refuses one
+  that matches no pattern in a committed list of allowed paths, or exceeds a size limit. A new kind
+  of file is then an edit to that list in the same change, where review sees it, and the list is
+  RP-7's missing layout check.
+- **Administer:** the ship report names every added file, apart from the diff.
+
+**Why:** committed browser-test results grew repositories by hundreds of megabytes, and old agent
+planning-session files were committed and stayed. Most fugitive files are harmless, as fugitive
+dust is until it is disturbed; the same path carries a `.env`, a database dump or a core file. The
+secrets scan (SH-12) judges only contents shaped like a secret; a file's path and size are the
+cheaper signal, and they catch the dumb cases too.
+
+**Enforced by:** Engineer — the default-deny ignore file and the commit step's path check. An
+ignore file does not cover a file already tracked, so the path check is the one that holds. On an
+existing repository, list every tracked path against the allowed list once: remove the fugitives
+already there, and rotate anything they exposed, since history keeps them.
+
+**Prior art:** fugitive emissions in industrial hygiene, releases that escape the designed stack or
+vent, controlled by enclosing the source rather than cleaning up after it; allow lists over deny
+lists.
 
 ## Shell scripts
 
