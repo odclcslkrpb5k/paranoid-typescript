@@ -12,8 +12,10 @@ error pages render on a raise, so errors as values (chapter 04) stop at the fram
 
 **Status.** Adapted from the TypeScript core, and not yet proven rule by rule on a project: read
 every recommendation here as (PROPOSED). Each named setting was checked on 2026-10-16 against
-Python 3.13, Django 6.1, mypy 2.4, basedpyright 1.40, ruff 0.17, pydantic 2.14, pytest 9.1 and
-uv 0.13. Tool options change between versions; check each against the version you install.
+Python 3.13, Django 6.1, mypy 2.4, basedpyright 1.40, ruff 0.17, pydantic 2.14, pytest 9.1 and uv
+0.13, and the type checkers again on 2026-10-19 with Pyrefly 1.4, basedpyright 1.40.2, mypy 2.4 and
+django-stubs 6.1.2. Tool options change between versions; check each against the version you
+install.
 
 ## Toolchain (chapter 01)
 
@@ -27,19 +29,31 @@ uv 0.13. Tool options change between versions; check each against the version yo
   and a dependency with no wheel for the image's platform becomes a review finding (TC-7). uv's
   `exclude-newer` gives a minimum release age; check which formats your version accepts.
 - **Formatter (TC-6).** `ruff format --check` in the one check command.
-- **Checker version (TC-8).** django-stubs' `compatible-mypy` extra pins mypy to the range the
-  stubs support; install through it rather than pinning mypy alone.
+- **Checker version (TC-8).** The type checker and django-stubs are pinned together, since the
+  checker reads Django's types from the stubs. With mypy, django-stubs' `compatible-mypy` extra
+  pins mypy to the range the stubs support; install through it rather than pinning mypy alone.
 
-## The checker (chapters 02 and 03)
+## The type checker (chapters 02 and 03)
 
-Two checkers fit, and the choice turns on two rules:
+Three type checkers fit. Pyrefly is the one that meets LN-6 and also types Django's ORM, so it is
+the default; the others suit the cases below.
 
-- **basedpyright**, with `typeCheckingMode = "all"`, turns every check on as an error. It is the
-  one with an equivalent of LN-6: `reportUnusedCallResult` refuses a discarded return value, so a
-  discarded `Result` fails the check with no custom rule. It also writes a baseline file
-  (`--writebaseline`) for AD-2.
-- **mypy** with django-stubs' plugin types models, managers and querysets more precisely, but has
-  no general unused-result check (`unused-awaitable` covers only awaitables). Its settings:
+- **Pyrefly**, with `preset = "all"`, turns every check on as an error. `unused-call-result`
+  refuses a discarded return value (LN-6), so a discarded `Result` fails with no custom rule.
+  Through django-stubs it types the ORM as precisely as mypy's plugin: a `DecimalField` reads as
+  `Decimal`, a nullable `TextField` as `str | None`, a `ForeignKey` as the related model, and
+  `filter` returns `QuerySet[Order, Order]`. Without django-stubs installed every model's `objects`
+  is a missing attribute and every field `Unknown`, so the stubs are a dependency, not an option.
+  It is stricter than the stubs in one place: it refuses assigning a `str` to a `DecimalField`,
+  which Django accepts and mypy allows. A baseline file (`--baseline`, `--update-baseline`) serves
+  AD-2.
+- **basedpyright**, with `typeCheckingMode = "all"`, has LN-6 too (`reportUnusedCallResult`) and a
+  baseline (`--writebaseline`), but no Django plugin: with django-stubs installed, every model
+  field is still "partially unknown", an error where it is declared and again wherever it is read.
+  It suits a project that barely touches the ORM.
+- **mypy** with django-stubs' plugin types the ORM as well as Pyrefly, but has no general
+  unused-result check (`unused-awaitable` covers only awaitables). Its settings, where a project
+  runs it:
 
   ```toml
   [tool.mypy]
@@ -52,37 +66,43 @@ Two checkers fit, and the choice turns on two rules:
   plugins = ["mypy_django_plugin.main"]
   ```
 
-Where domain code returns `Result`s (ER-1), LN-6 decides it for basedpyright; a project that leans
-on the ORM's types can run mypy beside it. Either way, install stubs for every dependency without
-inline types: an untyped dependency is `Any`, and `Any` is the hole every other rule leaks through.
+Pyrefly's settings are the preset and the paths: `[tool.pyrefly]` with `preset = "all"` and
+`project-includes`. Whichever checker runs, install stubs for every dependency without inline
+types: an untyped dependency is `Any`, and `Any` is the hole every other rule leaks through.
 
 - **Gaps against CP-1.** There is no unchecked-index setting: `rows[0]` on a `list` and `d[key]` on
-  a `dict` are never optional, in either checker. Use `next(iter(rows), None)` or a helper
+  a `dict` are never optional, in any of the three. Use `next(iter(rows), None)` or a helper
   returning `T | None`, and `.get(key)` with the `None` handled (never a default: ER-7).
 - **Everything is checked (CP-2):** tests, management commands and scripts under the same settings.
   Generated migrations are the one exclusion, by path in the configuration.
 - **Prove the settings are honoured (CP-3).** mypy reports a misspelled option as "Unrecognized
-  option" and still exits 0, so a typo silently switches a check off. One fixture per setting that
+  option" and still exits 0, and Pyrefly does the same with "Extra keys found in config"; a
+  misspelled preset name fails the parse, and Pyrefly then checks with its automatic configuration
+  while exiting 1. Either way a typo can silently switch a check off. One fixture per setting that
   the setting must reject catches it.
 - **Escape hatches (LN-2).** ruff's `ANN` rules require annotations and `ANN401` refuses an
   explicit `Any`. ruff's banned-api rule (`TID251`) refuses `typing.cast`. `assert x is not None`,
   Python's `x!`, vanishes under `python -O`: refuse it in application code with `S101` and use a
   `must(x, "what")` that raises.
-- **Exhaustive matches (LN-3).** mypy's `exhaustive-match` and basedpyright's
-  `reportMatchNotExhaustive` refuse a `match` over a union that misses a member. A `case _:` that
-  handles the rest silences both, as a `default` does in TypeScript; over a union, the only
-  `case _:` is one that calls `assert_never`.
-- **Coroutines (LN-4).** basedpyright's `reportUnusedCoroutine`, mypy's `unused-awaitable`, and
-  ruff's `RUF006` for a task created and dropped.
-- **Conditions (LN-5): a gap.** `truthy-bool` and `truthy-iterable` refuse only conditions that are
-  always true; `if items:` on a value that may be empty or `None` passes. Missing Engineer control:
-  a checker rule requiring a `bool` in a condition.
-- **Suppressions (LN-8).** `# type: ignore`, `# pyright: ignore` and `# noqa` are refused like
-  `eslint-disable`: a check fails on any of them. Until it exists, `PGH003` and `PGH004` refuse the
-  blanket forms, `RUF100` and the checkers' unused-ignore reports remove stale ones, and
-  basedpyright's `reportIgnoreCommentWithoutRule` requires a rule name. An exception goes in
-  `per-file-ignores` or a checker override, scoped by path. ruff has no baseline file, so on an
-  existing codebase a rule ratchets by a list of paths exempted from it that only shrinks (AD-2).
+- **Exhaustive matches (LN-3).** Pyrefly's `non-exhaustive-match-open-type`, mypy's
+  `exhaustive-match` and basedpyright's `reportMatchNotExhaustive` refuse a `match` over a union
+  that misses a member. A `case _:` that handles the rest silences all three, as a `default` does
+  in TypeScript; over a union, the only `case _:` is one that calls `assert_never`.
+- **Coroutines (LN-4).** Pyrefly's `unused-coroutine`, basedpyright's `reportUnusedCoroutine`,
+  mypy's `unused-awaitable`, and ruff's `RUF006` for a task created and dropped.
+- **Conditions (LN-5).** Pyrefly's `implicit-bool` refuses a condition that is not a `bool`: `if
+  items:` on a list or an optional, `n` as a conditional expression's test, `not s` on a string,
+  `while o:` and `a or b` on integers. mypy's `truthy-bool` and `truthy-iterable` refuse only
+  conditions that are always true, and basedpyright has no such check.
+- **Suppressions (LN-8).** `# type: ignore`, `# pyrefly: ignore`, `# pyright: ignore` and `# noqa`
+  are refused like `eslint-disable`: a check fails on any of them. Until it exists, `PGH003` and
+  `PGH004` refuse the blanket `type: ignore` and `noqa`, `RUF100` and the checkers' unused-ignore
+  reports (Pyrefly's `unused-type-ignore`) remove stale ones, and basedpyright's
+  `reportIgnoreCommentWithoutRule` requires a rule name. Pyrefly honours a bare `# pyrefly: ignore`
+  and a blanket `# type: ignore` without a word, and `PGH003` reads only `type: ignore`, so the
+  check must cover Pyrefly's comments itself. An exception goes in `per-file-ignores` or a checker
+  override, scoped by path. ruff has no baseline file, so on an existing codebase a rule ratchets
+  by a list of paths exempted from it that only shrinks (AD-2).
 - **Architecture as rules (LN-9).** `TID251` bans a name outside the module allowed to use it, as
   `no-restricted-properties` does: `json.loads` outside the parsing module (ER-4), `os.environ`
   outside settings (SV-1). Syntax rules ruff cannot express ("raise only `Panic` outside adapters",
