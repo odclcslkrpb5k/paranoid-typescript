@@ -26,12 +26,17 @@ A fake cannot show evaluation order inside an upsert, a constraint or type refus
 what the driver hands back for a column type. Prefer a test command that starts the database (in
 Docker Compose, beside the suite), so the tests always run. Where that is not possible, the
 database tests live in their own directory, run by a separate task that the check command (TC-5)
-always runs; never as tests that quietly skip when a variable is unset (TS-10).
+always runs; never as tests that quietly skip when a variable is unset (TS-10). Every place the
+suite runs uses that engine: a fork is another engine, and so is the same engine at another major
+version.
 
 **Why:** a 64-bit id that rounded to a different record (BD-4) was found in review; only a test
-against the real engine could pin the fix.
+against the real engine could pin the fix. One application ran MySQL on developers' machines and
+MariaDB in CI, and wrote `CAST(... AS JSON)`, which MySQL accepts and MariaDB refuses as a syntax
+error (MariaDB 11.8).
 
-**Enforced by:** Engineer — the test command starts the database.
+**Enforced by:** Engineer — the test command starts the database, and a test compares the
+version the server reports with the production version pinned in the repository (TS-7).
 
 ### TS-3 (SHOULD) The suite fails a test that leaks a timer, a socket or a pool connection. (PROPOSED)
 An `afterEach` (or a global teardown) asserts that every database pool is drained, no timer or
