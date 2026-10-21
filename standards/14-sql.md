@@ -110,3 +110,28 @@ upgrades are just a restart" is a statement about the data format only.
 
 **Enforced by:** Administer. Missing Engineer control: a CI check that fails when the pinned minor
 falls behind the newest published; reading the release notes needs a person.
+
+### SQ-9 (MUST) A function the application role may call with more privilege than its own pins its `search_path`, ending in `pg_temp`. (PROPOSED)
+In Postgres, a `security definer` function runs with its owner's privileges. Give each one
+`set search_path = <its own schemas>, pg_temp`, and revoke `TEMP` on the database from `PUBLIC`, so
+the application role cannot create temporary objects at all. The install of a function set (SQ-7)
+refuses a definer whose `search_path` is unset or does not end in `pg_temp`, and a function meant
+to run as its caller that is a definer.
+
+**Why:** Postgres searches the session's temporary schema before every other schema for tables,
+views and types unless the path names `pg_temp` explicitly. Any role that can create a temporary
+table can then shadow a table a definer function names without a schema, and the function works on
+the caller's object with the owner's privileges. Checked on Postgres 18.6: a definer function with
+`set search_path = public`, called by a role holding the default `TEMP`, read the caller's
+temporary table in place of its own; the same function with `public, pg_temp` read its own. The
+risk grows with SQ-7's pattern, where the application role may only execute functions and every
+write goes through a definer: there, one unpinned function lets the application role choose what
+the owner's privileges act on. (PROPOSED: one service has shipped it, with the install's refusals
+tested.)
+
+**Enforced by:** Engineer — the install's refusal, with a test per case (unset path, a path not
+ending in `pg_temp`, a definer where an invoker was meant), and a catalog test that asserts the
+application role's exact privileges, `TEMP` among them.
+
+**Prior art:** the Postgres manual, "Writing SECURITY DEFINER Functions Safely" (under
+`CREATE FUNCTION`).
