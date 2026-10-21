@@ -210,7 +210,8 @@ def describe(e: LoadError) -> str:
 ## Testing (chapter 07)
 
 - **pytest at its strictest:** `strict = true` (strict configuration, markers, xfail and
-  parametrization ids) and `filterwarnings = ["error"]`.
+  parametrization ids) and `filterwarnings = ["error"]` (TS-18). A deliberate warning is allowed
+  by an exact `ignore:` entry in that list, never by a blanket one.
 - **Leaks (TS-3).** An unclosed file or socket raises `ResourceWarning` when it is collected; with
   warnings as errors, pytest fails the test. This sees only what Python warns about: a pool
   connection never returned is not one.

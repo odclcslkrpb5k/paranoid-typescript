@@ -287,6 +287,29 @@ step; an assertion against them would have caught it the day the test was writte
 that pairs each assertion on server-derived text with an API read of the same value, so an
 assertion on screen text alone stands out.
 
+### TS-18 (SHOULD) The suite fails a test whose code emits a warning.
+The test setup records every warning the runtime, a framework or a library emits (`console.warn`,
+`console.error`, Node's `process.on("warning")`), and fails the test in `afterEach`, not by
+throwing from the warning call. Deliberate warnings are allowed by exact text, in one list. A
+self-test pins each recorded text, so a library that rewords a message cannot silently turn the
+check off (TS-6).
+
+**Why:**
+- **A framework's development-mode warning is a defect report.** It reports a missing list key, a
+  state update outside the test's control, an input switching from uncontrolled to controlled, or a
+  selector returning a new object for the same input. On a large frontend, that selector warning
+  was the only sign of a fallback (`state.x?.[id] ?? []`) that re-rendered on every store change.
+- **Fail afterwards, not from inside the call.** A throw from inside `console.warn` during a render
+  is caught by the nearest error boundary, which renders its fallback, and the test passes (React
+  19.3).
+- **The same capture, earlier.** That codebase's end-to-end console capture found 279 plain-object
+  throws (ER-3) and 48 floating promises (LN-4). Failing the unit suite on the same output moves
+  such findings to the cheapest test.
+
+**Enforced by:** Engineer — the test setup and its self-test.
+
+**Prior art:** pytest's `filterwarnings = ["error"]`; compilers' warnings-as-errors.
+
 ## Open questions
 
 - **Test runner:** `node:test` or Vitest. Either needs TS-3's leak check added. The examples use
