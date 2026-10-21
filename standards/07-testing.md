@@ -132,11 +132,36 @@ only review caught it.
 ### TS-8 (MUST) The suite that passes is the tree being shipped.
 Rebuild a test image in the same command that runs it (`docker compose run --build`), never run an
 image built earlier. A suite that drives a long-running service recreates it in the same command.
+- **A cache is an image too.** Every cache of build or test output (a test runner's transform
+  cache, a bundler's persistent cache, a CI cache restored across runs) keys on every input that
+  changes that output: the transform's configuration files, the transformer's own version
+  (including a peer dependency its loader does not declare), and the lockfile. A CI cache with a
+  bare fallback key restores output built from other inputs.
+- **So does every path filter** that decides whether a check runs. A filter that misses a
+  configuration file skips the check on a change to that file, and the check reports success.
+- **A test enumerates the build's configuration files** and fails when one is missing from a cache
+  key or a path filter, and a planted change to the configuration must change the output (CP-3).
 
 **Why:** a stale image passes with the same count, colour and duration as a real run. Three green
-suites in one ship ran a tree that was already red.
+suites in one ship ran a tree that was already red. One change that moved a frontend's compiler
+settings into the transformer's own configuration file found four instances of the same hole:
+- the test runner's transform cache ignored that file, so tests ran on output compiled under the
+  old settings;
+- the bundler's persistent cache tracked neither that file nor the transformer, and CI restored
+  it from a key on the lockfile alone, so the build would have shipped modules compiled under the
+  old settings;
+- the unit tests' path filter omitted the file, so a change to it alone would have skipped the
+  required check;
+- the component catalogue's deploy filter listed only JavaScript and `package.json`, so it had
+  never redeployed for a TypeScript-only change.
 
-**Enforced by:** Engineer — the test command includes the rebuild.
+Review found all four; no check could have.
+
+**Enforced by:** Engineer — the test command includes the rebuild; the enumeration test and the
+planted change for caches and filters.
+
+**Prior art:** hermetic builds (Bazel), whose action keys cover every declared input by
+construction.
 
 ### TS-9 (SHOULD) Test an outbound HTTP client against a loopback server, not only through a fake of its own interface.
 Start a server on port 0, with the base URL and time budget as parameters. A handler that never
