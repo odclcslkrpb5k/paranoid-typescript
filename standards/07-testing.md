@@ -110,7 +110,10 @@ parses its report and compares the files it says it checked with the build's own
 floor passed twice while three of four statements went unchecked. A static analyzer given a
 directory where it expected a project file checked nothing and exited 0; another exited 0 with
 findings whenever it was asked for machine-readable output; a package index update that failed to
-download exited 0, and the install went ahead from stale indexes.
+download exited 0, and the install went ahead from stale indexes. In CI, the same green came from
+an approval label that made an end-to-end gate skip its four shards in fifteen seconds and report
+success, and from an advisory job whose steps were all allowed to fail, which reported success for
+two days while dead.
 
 **Enforced by:** Administer, in review; Engineer where the gate compares a tool's report with the
 build's file list. Missing Engineer control: a lint rule refusing `.find(` where a check selects
