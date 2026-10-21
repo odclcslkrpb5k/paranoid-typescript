@@ -92,10 +92,10 @@ types: an untyped dependency is `Any`, and `Any` is the hole every other rule le
   in TypeScript; over a union, the only `case _:` is one that calls `assert_never`.
 - **Coroutines (LN-4).** Pyrefly's `unused-coroutine`, basedpyright's `reportUnusedCoroutine`,
   mypy's `unused-awaitable`, and ruff's `RUF006` for a task created and dropped.
-- **Conditions (LN-5).** Pyrefly's `implicit-bool` refuses a condition that is not a `bool`: `if
-  items:` on a list or an optional, `n` as a conditional expression's test, `not s` on a string,
-  `while o:` and `a or b` on integers. mypy's `truthy-bool` and `truthy-iterable` refuse only
-  conditions that are always true, and basedpyright has no such check.
+- **Conditions (LN-5).** Pyrefly's `implicit-bool` refuses a condition that is not a `bool`:
+  `if items:` on a list or an optional, `n` as a conditional expression's test, `not s` on a
+  string, `while o:` and `a or b` on integers. mypy's `truthy-bool` and `truthy-iterable` refuse
+  only conditions that are always true, and basedpyright has no such check.
 - **Suppressions (LN-8).** `# type: ignore`, `# pyrefly: ignore`, `# pyright: ignore` and `# noqa`
   are refused like `eslint-disable`: a check fails on any of them. Until it exists, `PGH003` and
   `PGH004` refuse the blanket `type: ignore` and `noqa`, `RUF100` and the checkers' unused-ignore
