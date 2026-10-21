@@ -136,6 +136,30 @@ selector misfires.
 **Example:** [`test/lint-config.test.ts`](../examples/test/lint-config.test.ts),
 [`test/fixtures/lint/violations.ts`](../examples/test/fixtures/lint/violations.ts).
 
+### LN-10 (SHOULD) Autofix runs unattended only for rules that cannot change meaning.
+`eslint --fix`, and any linter's autofix, runs without review only for formatting-class rules.
+Any other fix is reviewed, and the type check runs after it before the result is believed. Fixers
+known to change meaning:
+- `no-empty-interface` (deprecated in typescript-eslint 8, still shipped) rewrites `interface X
+  extends Y {}` as `type X = Y`. Inside `declare module`, the interface is a declaration merge,
+  and the alias silently ends the library's type augmentation. Its replacement,
+  `no-empty-object-type`, offers no fix for this case (typescript-eslint 8.72).
+- `no-unnecessary-type-assertion` deletes an assertion the declared types call redundant; where a
+  declared type is wrong (BD-8), or the assertion steered a generic, the deletion compiles
+  differently or not at all.
+
+Where a library's types require a construct a rule refuses, the exception is scoped by file in
+the lint configuration (LN-8), so the fixer never reaches it.
+
+**Why:** one `--fix` pass over the changed files of a large frontend did both of the above: a
+UI library's whole theme augmentation stopped applying, and a component's props stopped resolving.
+Lint exited clean both times; only the type check caught them. An agent runs `--fix` by reflex
+because it is normally safe, and the one tool that could warn it says nothing.
+
+**Enforced by:** Engineer — the check command runs the type check after lint (TC-5), so a
+destructive fix fails the ship. Administer — not running other fixers unattended. Missing Engineer
+control: a fix command that runs the linter with only an allow-list of formatting rules enabled.
+
 ## What lint cannot see
 
 A call that throws with no `throw` in sight (`new URL("bad")`, a library function), a combinator
