@@ -114,6 +114,14 @@ once rounded an id to a different record.
 - **Check the JSON type before minting.** A numeric key must be a JSON number when it reaches the
   parse function: a parse function that also accepts text would read the string `"7"` as key 7,
   hiding a sender that changed its format.
+- **One key, two wire forms, one brand.** An owner whose GraphQL API sends a key as an `ID` string
+  and whose REST API sends the same key as a number has one brand for it, with one runtime form
+  (BD-4 decides which), and one parse function per wire form: the REST one accepts only a JSON
+  number, the GraphQL one only a string of digits, and the one whose form differs converts. Each is
+  strict about its own form, so neither hides a sender that changed format. Two brands for one key
+  force a conversion at every crossing, and an unbranded `id: string` beside `id: number` lets
+  either be passed for the other. Keys of adjacent kinds that share a form (a membership's key and
+  its user's key) are separate brands for the same reason.
 - **Choose, then mint.** When choosing among candidates (the latest, the largest), choose among the
   raw values and mint the one chosen: filtering non-keys first silently promotes the next one.
 - **Report a present value that parses to null**, by member name. Otherwise a key that used to fail
