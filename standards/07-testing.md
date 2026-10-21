@@ -78,7 +78,10 @@ tool:
 - runs the test on the unmutated code first, and counts a mutant as caught only when that run
   passed (a test that is already red, or a filter that selects nothing, judges no mutant);
 - type-checks the mutant with the tests that will judge it, and reports a mutant that does not
-  compile as its own outcome — it fails every test and would otherwise score as caught;
+  compile as its own outcome — it fails every test and would otherwise score as caught. Under
+  `noUnusedLocals` and `noUnusedParameters` (CP-1), deleting the only use of a constant or a
+  parameter fails to compile (TS6133), so write such a mutant to keep every symbol in use
+  (`x || false`, `n * 0`);
 - counts a check that fails for a reason other than the code (the container did not start, a
   dependency could not be fetched, a signal killed it) as inconclusive;
 - keeps a whole copy of each mutated file, keyed on its full path, and restores from the copy,
