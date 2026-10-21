@@ -69,6 +69,11 @@ it throws, and returns a `Result`.
   as the request, with the same timeout signal, or a connection dropped mid-body escapes the
   adapter as a bare `TypeError`. A vendored client may wrap what `fetch` throws but not its body
   reads; check.
+- **A foreign package's types are claims about it (BD-8).** In postgres.js 3.4.9, `ReservedSql`
+  inherits a declared `begin()` from `Sql` and has none at run time, and `reserve()` on a pool that
+  has never connected never settles when `fetch_types` is `false`. Test each adapter against the
+  real library and a real server (TS-2), and give every wait on foreign code a deadline (SV-20), so
+  a promise that never settles fails the test instead of hanging it.
 
 **Why:** libraries throw from wherever they are called, so they are called from one place. That
 place is also the only one that knows the library's error marks, so it is the only place a failure
