@@ -54,7 +54,10 @@ a declared field assigned in the constructor. The compiler settings are in CP-1.
 Code that is already erasable runs on Node, Deno and Bun, and through `tsc`, unchanged, so the
 choice of runtime stays open. When Deno's end of development was announced in October 2026,
 projects on it had to plan a move; the ones already erasable faced no rewrite. Measured across
-seven services, the only cost was one mechanical rewrite per parameter property.
+seven services, the only cost was one mechanical rewrite per parameter property. The rule holds
+where nothing strips types too: a 380,000-line frontend whose bundler compiles every syntax ruled
+the flag out for that reason, yet the flag would have cost it one error, and it keeps the code
+portable.
 
 **Enforced by:** Engineer — `erasableSyntaxOnly` and `verbatimModuleSyntax` (CP-1).
 
