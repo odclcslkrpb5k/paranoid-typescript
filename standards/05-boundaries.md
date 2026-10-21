@@ -20,6 +20,14 @@ until something has checked it. Casting it is lying to the compiler about it.
   change, because callers switch on it exhaustively. A schema whose members are all optional
   accepts any object, so it also requires the record itself: decode the envelope the answer comes
   in, and refuse one without the record, or with a record under a key other than the one asked for.
+- **A client that outlives its server's deploy reads an unknown enumeration value as a variant.**
+  (PROPOSED) A browser tab stays open across deploys, and a mobile app is updated when its user
+  chooses, so neither can take a new value "as a code change" before the server sends it. Its
+  parser maps a value it does not know to an explicit `{ kind: "unknown"; raw: string }` variant,
+  which callers handle exhaustively like any other (LN-3), typically as a neutral "unknown" state;
+  refusing the record would break every open client on the deploy that adds the value. This is
+  SV-23's expand and contract seen from a client that cannot be deployed: the variant is the expand
+  step it ships in advance. Clients deployed with their server still refuse.
 - **Bound the depth of anything walked by recursion.** `JSON.parse` does not recurse, so it accepts
   a body nested 100,000 deep; a hand-written decoder, copier or brand parse function that then
   recurses overflows the stack at about 5,000 levels (Deno 2.9), and the `RangeError` escapes a
