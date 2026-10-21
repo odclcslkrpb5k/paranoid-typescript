@@ -14,8 +14,10 @@ error pages render on a raise, so errors as values (chapter 04) stop at the fram
 every recommendation here as (PROPOSED). Each named setting was checked on 2026-10-16 against
 Python 3.13, Django 6.1, mypy 2.4, basedpyright 1.40, ruff 0.17, pydantic 2.14, pytest 9.1 and uv
 0.13, and the type checkers again on 2026-10-19 with Pyrefly 1.4, basedpyright 1.40.2, mypy 2.4 and
-django-stubs 6.1.2. Tool options change between versions; check each against the version you
-install.
+django-stubs 6.1.2. The section on an existing codebase was checked on 2026-10-21 against DRF
+3.18.3, drf-spectacular 0.30.0, graphene 3.4.3, graphene-django 3.2.3 and MariaDB 11.8.9, with the
+MySQL error numbers taken from PyMySQL 1.2.3's constants. Tool options change between versions;
+check each against the version you install.
 
 ## Toolchain (chapter 01)
 
@@ -259,6 +261,36 @@ def describe(e: LoadError) -> str:
   events instead (ER-5), and keep `DEBUG` off with `check --deploy` (above).
 - **Validation messages quote input.** pydantic's `errors()` includes the refused value; use
   `errors(include_input=False, include_url=False)` and keep `loc` and `type`.
+
+## An existing codebase: DRF, graphene and MySQL
+
+The sections above assume a new project: pydantic or django-ninja at the boundary, Postgres
+underneath. An existing application more often has DRF serializers, graphene and MySQL or MariaDB.
+What changes:
+
+- **Response schemas from DRF (BD-8).** drf-spectacular merges request and response into one
+  component unless `COMPONENT_SPLIT_REQUEST = True`; turn it on. Even split, a response component's
+  `required` list comes from each serializer field's `required`, which is an input notion: a field
+  with a model default is optional in every response although the server always sends it
+  (drf-spectacular 0.30.0). Fix it at the owner, with a postprocessing hook
+  (`POSTPROCESSING_HOOKS`) or a response serializer that declares such fields `read_only`, and
+  prove it with BD-8's test, which serializes real rows and validates them against the published
+  schema.
+- **A missing object serializes as a record (BD-8).** `Serializer(None).data` is a dict of field
+  defaults, not `None`: every string field `""`, a nullable column included, and no key (DRF
+  3.18.3). A view that may have no object checks for `None` before serializing.
+- **graphene's nullability (BD-8).** graphene-django's `DjangoObjectType` derives non-null from the
+  column (`title: String!` for a non-null `CharField`), but a hand-declared `graphene.String()` is
+  nullable unless it says `required=True` (graphene 3.4.3, graphene-django 3.2.3). Check the
+  hand-declared fields first.
+- **Database errors by code (ER-8).** mysqlclient's error carries the server's error number as
+  `args[0]`, on the `__cause__` Django keeps: 1062 a duplicate key, 1452 a missing parent row, 1451
+  a row still referenced, 1048 a null in a `NOT NULL` column, 1213 a deadlock, 1205 a lock wait
+  timeout. MariaDB uses the same numbers.
+- **The advisory lock (DB-4)** on MySQL is `GET_LOCK(name, timeout)`, released by `RELEASE_LOCK`,
+  held by the connection.
+- **The engine (TS-2).** MariaDB is not MySQL. `CAST(... AS JSON)` works on MySQL and is a syntax
+  error on MariaDB 11.8, so CI runs the production engine, not the fork.
 
 ## What it does not replace
 
