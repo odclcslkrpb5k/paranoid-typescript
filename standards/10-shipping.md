@@ -196,6 +196,12 @@ it). It scans the commit message too. Requirements the tool must meet:
 - Keep placeholder rules case-sensitive: `[A-Z_]+` under the `i` flag matches every word, so a
   letter-only password passes. Make the user part of a URL-password rule optional
   (`redis://:pw@host`).
+- Match an exemption's key with the same case rule as the finding it drops. A password finding
+  matched without regard to case, with its exemptions for references (`config.x`,
+  `password: string`) matched case-sensitively, flags `ownerPassword: config.x`. An exemption for a
+  constant's name requires the terminator that ends a reference (`;`, `,` or `)`): left optional,
+  it passes `OWNER_PASSWORD: K7QX9P2M` in YAML as a constant. Test each exemption in every case
+  form the finding accepts, and against an all-caps literal.
 - Scan the message as git will store it. Without an editor, `git commit -F` and `-m` clean a
   message only of whitespace: `#` lines, and everything below a scissors line, are kept and pushed.
   A scanner that first strips them, as git would in an editor, never reads text that reaches the
