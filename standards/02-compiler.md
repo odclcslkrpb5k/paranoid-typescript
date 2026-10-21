@@ -45,15 +45,32 @@ them (AD-6).
 
 ### CP-2 (MUST) Check everything: source, tests, scripts and tools, under the same settings.
 One `tsc --noEmit` run covers every TypeScript file in the repository, with no `exclude` for tests
-or tooling. The one exception is a directory of fixtures that exist to fail a check (CP-3, LN-9):
-it is excluded from the main run and checked by the fixture test instead. Where tests need
-something only tests may do, it goes through a named helper (`must(x, "what")` asserts presence and
-narrows, where `x!` only silences the compiler), not a looser config.
+or tooling. One exception is a directory of fixtures that exist to fail a check (CP-3, LN-9): it is
+excluded from the main run and checked by the fixture test instead.
+
+The other exception is code a generator writes, which no one edits. First choose or configure a
+generator whose output passes the checks; exclude by path only what still cannot, from the compiler
+and lint alike, recorded as a deviation (RP-6), and only on three conditions:
+1. a check fails when the committed output differs from what the generator produces from the
+   current inputs (TS-7);
+2. the generator is configured as strictly as it allows: for GraphQL codegen, `strictScalars` with
+   a `scalars` map, so a custom scalar has a declared type, and `avoidOptionals`, so a nullable
+   field is present as `Maybe<T>` rather than optional (`@graphql-codegen/typescript` 6.1);
+3. the generated types are treated as the owner's claims, not as a parse: data typed by them is
+   still parsed at the boundary (BD-1), and the claims are checked against recorded responses
+   (TS-11).
+
+Where tests need something only tests may do, it goes through a named helper (`must(x, "what")`
+asserts presence and narrows, where `x!` only silences the compiler), not a looser config.
 
 **Why:** tests are code an agent writes too, and most of what a stricter setting finds is in them.
-Looser rules for tests would leave most of the code under the weaker control.
+Looser rules for tests would leave most of the code under the weaker control. Generated code is the
+opposite case: four generated files of one frontend held 645 `as`, 311 `as unknown as` and 297
+`any`, which no one can fix in place, and which a baseline would hold forever. The control that
+matters there is freshness, which that project's CI already enforced.
 
-**Enforced by:** Engineer — the single project configuration.
+**Enforced by:** Engineer — the single project configuration; for generated code, the freshness
+check and the generator's configuration.
 
 ### CP-3 (SHOULD) Prove that every compiler option is honoured.
 Keep one fixture per option in `tsconfig.json`: a file that must fail the check with that option on
