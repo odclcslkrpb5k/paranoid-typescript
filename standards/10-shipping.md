@@ -196,13 +196,20 @@ it). It scans the commit message too. Requirements the tool must meet:
 - Keep placeholder rules case-sensitive: `[A-Z_]+` under the `i` flag matches every word, so a
   letter-only password passes. Make the user part of a URL-password rule optional
   (`redis://:pw@host`).
+- Scan the message as git will store it. Without an editor, `git commit -F` and `-m` clean a
+  message only of whitespace: `#` lines, and everything below a scissors line, are kept and pushed.
+  A scanner that first strips them, as git would in an editor, never reads text that reaches the
+  remote. Commit with `--cleanup=strip`, and scan the raw text wherever the scanner reads a
+  message.
 - Test that the scanner can fail: put the invalid byte inside the secret's value, under a UTF-8
   locale the script must override.
 
 **Why:** a scan whose hits a person reads finds what that person notices. Each requirement above is
 a hole a review found in a scanner that was already in use. Three repositories took names from
 `+++` headers, and in one a staged file named `q"x.md` passed its hook unchecked; this standard's
-own hook passed a file named `:(glob)zz.md`.
+own hook passed a file named `:(glob)zz.md`. A scanner that stripped `#` lines from a commit
+message, to read it as git would, passed a message whose body was a commented-out cloud key, and
+git stored that line.
 
 **Enforced by:** Engineer — the scanner, in the hook and the gate. Patterns do not find personal
 data; that stays with review (DP-1).
