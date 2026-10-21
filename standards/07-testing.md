@@ -271,6 +271,22 @@ that fails when an exported parse function has no property test.
 **Example:** [`test/builtins.test.ts`](../examples/test/builtins.test.ts),
 [`test/ids.test.ts`](../examples/test/ids.test.ts).
 
+### TS-17 (SHOULD) An end-to-end assertion on a value the UI derives from server state also reads that value from the server. (PROPOSED)
+The test asserts the value through the API as well as on screen, and its expected value comes from
+the server's rule, not from what the UI happened to show when the test was written.
+
+**Why:** an end-to-end test demoted a project lead and expected that person's task count to stay at
+one. The server had always unassigned a demoted member's tasks, so the true count was zero. The
+test passed for months only because the table never refetched after the change and kept showing a
+stale count. When an unrelated backend change made the table refetch, the test failed on every
+change, against the main branch's own frontend and backend. The test had been certifying a stale
+cache as correct behaviour. The server's own responses in the trace showed the real state at every
+step; an assertion against them would have caught it the day the test was written.
+
+**Enforced by:** Administer — review of end-to-end tests. Missing Engineer control: a test helper
+that pairs each assertion on server-derived text with an API read of the same value, so an
+assertion on screen text alone stands out.
+
 ## Open questions
 
 - **Test runner:** `node:test` or Vitest. Either needs TS-3's leak check added. The examples use
