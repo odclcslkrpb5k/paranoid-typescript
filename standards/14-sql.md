@@ -78,13 +78,27 @@ when the set's checksum changes. Nothing depends on that schema except triggers 
 no generated column, default, check, view or index expression references it. An empty set never
 replaces a non-empty applied one.
 
+Where two images serve from one database at once, as in a rolling deploy, the set is never rebuilt
+in place. (PROPOSED)
+- Each release installs its set into schemas of its own, named by the set's checksum, and the
+  install refuses, rolling back whole, a set that creates, alters or drops anything outside them.
+- The application role may execute the current set, the one adopted before it, and any set a live
+  session names (in its `application_name`), and no other.
+- An old set is dropped only when it is not among the newest few, ordered by when each was last
+  adopted (so a rollback that adopts an older set again keeps it), and nothing names or depends on
+  it.
+- Trigger functions, which tables depend on, live in a stable schema that only migrations change.
+
 **Why:** `create or replace` cannot change a signature or return type, so a set is replaced whole,
 and the cascade silently drops whatever depends on it. A missing directory once read as an empty
 set: the rebuild would have dropped every function and audit trigger, and the deploy reported
-green.
+green. Rebuilding in place also assumes one image at a time: a service whose previous image kept
+serving through a rolling deploy returned errors for 20 to 60 seconds of every deploy while its
+functions were replaced under it.
 
 **Enforced by:** Engineer — migrator tests (rebuild only on change, a trigger survives, an empty
-set is refused) and a dependency test over `pg_depend`.
+set is refused) and a dependency test over `pg_depend`. For sets in their own schemas, a test per
+refusal of the install, and a test of the grants.
 
 ### SQ-8 (SHOULD) Keep the Postgres pin at the newest minor, and verify a move.
 Read the release notes' migration actions against the catalog; where a note names a primitive that
