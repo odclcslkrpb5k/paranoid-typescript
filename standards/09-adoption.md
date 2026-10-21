@@ -21,7 +21,9 @@ for most of CP-1 (CP-1 gives the detail), while one agent-written codebase that 
   so does a suppression that is no longer needed, so the file only shrinks (prune with
   `--prune-suppressions`).
 - **Compiler:** a small script runs `tsc --noEmit`, records error counts per file and error code in
-  a committed baseline, and fails if any count goes up or a file with no entry has errors. The
+  a committed baseline, and fails if any count goes up or a file with no entry has errors. It also
+  fails when a count falls and the baseline was not lowered in the same change, as the lint half
+  does; otherwise the next change can add the same error back under the old allowance. The
   compiler needs no suppression comments that way.
 - **The gate compares against the committed baseline at origin**, not the working tree's copy, so a
   change cannot raise the baseline and add the violation in one commit.
