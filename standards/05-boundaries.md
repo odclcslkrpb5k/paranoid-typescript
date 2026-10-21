@@ -167,6 +167,39 @@ helper's module.
 
 **Example:** [`src/records.ts`](../examples/src/records.ts).
 
+### BD-8 (SHOULD) A contract says exactly what its owner sends, and a contract that lies is fixed at the owner. (PROPOSED)
+- **Nullable means it can be null.** A schema that declares a member nullable or optional when the
+  owner never omits it is a defect at the owner, fixed there. A consumer's guard against a value
+  the owner cannot send is an ER-7 default: delete it once the owner's schema is right.
+- **Responses are described apart from requests.** A member optional on input (a default, a
+  server-assigned key) is not thereby optional on output; generate the two schemas separately.
+- **The shape is the declared one.** An owner whose serializer rewrites a declared list into a
+  keyed object, or answers "none" with a record of defaults, is sending a different contract from
+  the one it publishes.
+
+**Why:** BD-1 parses into the owner's type and assumes that type is right. Where it was not, every
+consumer paid separately:
+- **Wrong nullability.** On a large frontend, turning on `strictNullChecks` added 362
+  `restrict-template-expressions` errors (AD-3). Most were values the generated types called
+  nullable that the backend never sent as null. Each was answered in the frontend with a guard, a
+  fallback, a filter or a `String()` coercion.
+- **A wrong shape.** A legacy renderer rewrote nested lists of keyed records into keyed objects,
+  so a member every consumer read as an array arrived as `{ "65": {...} }`. `Array.isArray(x) ? x :
+  []` guards turned it into an empty list. The bug was fixed, regressed and fixed again before the
+  renderer was found to be the cause.
+- **A fake record.** A serializer handed a missing object answered with a record of field
+  defaults, not `null`, so a consumer's `!== null` test passed and rendered an empty link.
+
+**Enforced by:** Engineer — a test on the owner's side serializes real rows, the empty case
+included, and validates each answer against the published response schema, strictly: no extra
+nullability, no missing member (TS-7). Administer — the review that a nullable member can actually
+be null. Missing Engineer control: a test that compares each response member's nullability with the
+nullability of the column it is read from. Higher, where possible: the schema is generated from the
+same declarations the serializer uses, so the two cannot disagree.
+
+**Prior art:** design by contract (Bertrand Meyer): a postcondition is the supplier's obligation,
+and a client that re-checks it is working around a broken supplier.
+
 ## Open questions
 
 - **Schema library:** zod or valibot (or the owner's generated decoders). Choose on how well the
