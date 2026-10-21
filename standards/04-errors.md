@@ -62,7 +62,9 @@ it throws, and returns a `Result`.
   back only when its callback throws; a scheduler that records a cycle as failed only when its
   callback throws. There the adapter turns an error `Result` into a throw to get the behaviour, and
   hands the `Result` back. Write it once, test it once. Without it, every failed cycle is recorded
-  as clean.
+  as clean. What it throws is an `Error` subclass carrying the `Result`'s error as a field, never
+  the error value itself: a framework that logs an uncaught rejection prints a plain object as
+  `Object`, with no message and no stack.
 - **`fetch()` resolving means only that the headers arrived.** Read the body inside the same catch
   as the request, with the same timeout signal, or a connection dropped mid-body escapes the
   adapter as a bare `TypeError`. A vendored client may wrap what `fetch` throws but not its body
@@ -70,7 +72,11 @@ it throws, and returns a `Result`.
 
 **Why:** libraries throw from wherever they are called, so they are called from one place. That
 place is also the only one that knows the library's error marks, so it is the only place a failure
-can be classified honestly.
+can be classified honestly. In one browser application, an error helper returned a plain object
+that 279 call sites threw. Every rejection nothing caught reached the console as the bare word
+`Object`. Once the helper returned an `Error` subclass, the console named the failure and the
+action that raised it. LN-1's `only-throw-error` refuses that throw; the codebase was not yet
+running it.
 
 **Enforced by:** Engineer — `no-restricted-imports` allows foreign modules only under
 `src/adapters/`; `no-restricted-syntax` allows `catch`, `.catch(...)` and a `.then(...)` rejection
