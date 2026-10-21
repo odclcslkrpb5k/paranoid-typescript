@@ -28,7 +28,13 @@ Measured on seven services that already ran under `strict` with tidy boundaries,
 `noPropertyAccessFromIndexSignature` together produced 2,349 errors, three quarters of them in
 tests — which is why CP-2 exists. `noPropertyAccessFromIndexSignature` mostly turns `x.foo` into
 `x["foo"]` on values that are honestly untyped. It pays once boundaries are parsed into declared
-types (BD-1), so on an existing codebase it comes after that step (AD-4).
+types (BD-1), so on an existing codebase it comes after that step (AD-4). Its cost can also come
+from one annotation that widens a literal to an index signature. A styles object annotated
+`: Record<string, CSSObject>` makes every `classes.root` an index-signature read. On a 380,000-line
+frontend that accounted for about 85% of the flag's 5,966 errors. `satisfies Record<string,
+CSSObject>` checks the same thing and keeps the literal keys: one convention change, not 5,000
+`classes["root"]` edits that make the code worse. Group a flag's errors by origin before planning
+them (AD-6).
 
 **Enforced by:** Engineer — `tsc --noEmit` in the check command (TC-5).
 

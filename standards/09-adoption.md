@@ -102,13 +102,21 @@ production reading; whether that reading compared anything needs a person.
 Before starting, count: type assertions (excluding `as const`), `as unknown as`, `!`, `any` in a
 type position, `@ts-` comments and lint suppressions, `throw` statements and `catch` blocks,
 `JSON.parse` / `Number(` / `String(` calls, files importing an external module directly; and the
-compile errors each stricter flag produces, split into source, tests and scripts. Each step then
-has a number to move.
+compile errors each stricter flag produces, split into source, tests and scripts. Group each
+flag's errors as well by the declared type the offending expression has, or the module that
+declares it: one declaration or convention often produces most of a count, and fixing it is one
+change, not a burn-down. Each step then has a number to move.
 
 **Why:** on one agent-written codebase of 59,000 lines the count was about 667 type assertions and
 280 non-null assertions, and the three main flags produced 2,349 errors, 1,746 of them in tests.
 Most source errors came from database rows typed as index signatures, which step 3 removes. Without
-the count, nobody would have guessed the tests were three quarters of the work.
+the count, nobody would have guessed the tests were three quarters of the work. On a 380,000-line
+agent-written frontend, the tests' share was 29% for one flag and 5% for another, so that split is
+a property of how a codebase and its tests were written. Measure it; do not project it from
+another codebase. There, 5,966 `noPropertyAccessFromIndexSignature` errors made the largest
+burn-down of the plan. Grouped by origin, about 85% came from one annotation in a style convention
+(CP-1).
 
 **Enforced by:** Administer. Missing Engineer control: a script that prints every count listed
-above, so taking them is one command.
+above, so taking them is one command, with each flag's errors grouped by the type the diagnostic
+names.
