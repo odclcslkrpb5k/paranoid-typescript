@@ -61,7 +61,13 @@ that refuses a change to the compiler options unless the same commit retakes the
 1. **Compiler settings** (CP-1), except `noPropertyAccessFromIndexSignature`, behind the compiler
    baseline.
 2. **Type-aware lint** (chapter 03) behind the lint baseline, taken after step 1. New code is held
-   to it at once.
+   to it at once. Until step 3 is done, the rules that trust a declared type
+   (`no-unnecessary-condition`, `no-unnecessary-type-assertion`, and the "always truthy" findings
+   of `strict-boolean-expressions`) are not fixed by machine (LN-10). Before boundaries are parsed,
+   a declared type is only a claim, and these rules advise deleting the very guard that real data
+   needs when the claim is wrong (BD-8). Their findings on a value from an unparsed boundary are
+   reviewed, not applied. (PROPOSED: reasoned from BD-8's incidents, not from an observed bad
+   fix.)
 3. **Parse at the boundary** (chapter 05). This removes most index-signature reads and most casts
    in one move, so it comes before burning anything down by hand; turn on
    `noPropertyAccessFromIndexSignature` at its end.
