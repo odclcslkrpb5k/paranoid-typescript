@@ -82,10 +82,12 @@ tool:
   `noUnusedLocals` and `noUnusedParameters` (CP-1), deleting the only use of a constant or a
   parameter fails to compile (TS6133), so write such a mutant to keep every symbol in use
   (`x || false`, `n * 0`);
-- counts a mutant as caught only when a test fails, read from the test runner's own count of
-  failures, never from the exit status of a command that also formats or lints: two mutants once
-  scored as caught while every test passed, one because it lengthened a line past the formatter's
-  width and one because it tripped a lint rule;
+- counts a mutant as caught only when a test fails, read from the test runner's own counts of tests
+  that failed and tests it cancelled (`node:test` reports a test cut off by `--test-timeout` as
+  cancelled, with a fail count of 0, and a mutant that makes code hang is a real kill), never from
+  the exit status of a command that also formats or lints: two mutants once scored as caught while
+  every test passed, one because it lengthened a line past the formatter's width and one because it
+  tripped a lint rule;
 - counts a check that fails for a reason other than the code (the container did not start, a
   dependency could not be fetched, a signal killed it) as inconclusive;
 - keeps a whole copy of each mutated file, keyed on its full path, and restores from the copy,
