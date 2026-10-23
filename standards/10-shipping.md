@@ -185,8 +185,13 @@ it). It scans the commit message too. Requirements the tool must meet:
   tab or the quotes into the name, or skips the file. Take names from `git diff --name-only -z`,
   diff each file alone, and pass `--literal-pathspecs` (or set `GIT_LITERAL_PATHSPECS=1`):
   otherwise a file named `*.md` diffs every Markdown file, and one named `:(glob)x.md` matches
-  nothing and passes unscanned. Test with planted names: a quote, a space, a non-ASCII byte, a
-  glob, pathspec magic, and a line beginning `++`.
+  nothing and passes unscanned. Even a literal pathspec matches a directory's contents: a change
+  that deletes the file `a.ts` and adds `a.ts/in.yml` lists both names, and the diff of `a.ts`
+  alone prints `in.yml`'s added lines again, under the other file's name and kind. List the files
+  to diff with `--diff-filter=d`, since a deleted file adds nothing and only a deleted file can
+  share its name with a directory, and keep the full list for the check of forbidden paths. Test
+  with planted names: a quote, a space, a non-ASCII byte, a glob, pathspec magic, a deleted file
+  replaced by a directory, and a line beginning `++`.
 - Diff with `--text` and grep with `-a`, under `LC_ALL=C`. Without them, git shows a file it judges
   binary (one with a NUL byte near its start) only as "Binary files differ", and GNU grep under a
   UTF-8 locale, meeting a byte that is not valid UTF-8, prints "binary file matches" and suppresses
