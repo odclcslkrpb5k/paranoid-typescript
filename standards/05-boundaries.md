@@ -34,6 +34,15 @@ until something has checked it. Casting it is lying to the compiler about it.
   function that promises a `Result`. Walk without recursion, or refuse past a depth well above any
   real record (64) as a value naming the path, and test with a body deeper than the bound. A schema
   library walks only as deep as its schema, unless the schema is itself recursive.
+- **Text bound for a store is refused by what the store refuses, with the same character classes.**
+  A JavaScript string holds U+0000, which Postgres `text` cannot (22021); and U+0085 survives
+  `trim()` and matches JavaScript's `\S`, while Postgres's `[[:space:]]` under the builtin
+  `C.UTF-8` provider counts it as space, so a "not blank" check in the parser passes what the
+  database's CHECK refuses, and the request answers 500. Where both sides judge a class, name it
+  explicitly on both (`/[^\s\u0085]/u`), and test the boundary characters against both. Do not
+  over-correct: refusing all of `\p{Cf}` refuses U+200C and U+200D, which Persian and Indic scripts
+  and emoji sequences need. Refuse `\p{Cc}`, `\p{Zl}`, `\p{Zp}` and the characters that hide or
+  reorder text (U+200B, U+2060, U+FEFF, U+202A to U+202E, U+2066 to U+2069).
 - **Keep decimals exact.** Money and other decimals are parsed from text, never through a float.
 - **Refuse only what no valid record could hold.** A parser of what the owner's own system returns
   refuses only what its column types or constraints rule out. One that refused a blank value the
