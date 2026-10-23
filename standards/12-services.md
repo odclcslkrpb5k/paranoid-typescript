@@ -447,3 +447,23 @@ for an authorization check it costs another tenant's data.
 logger and the entry points. That lint confinement is what makes the rule real; without it only
 review would hold it. It is MUST while still proposed because the hazard is one that would hurt any
 project.
+
+## Serving browsers and strangers
+
+### SV-27 (MUST) A code or token handed across origins in a URL is bound to the browser that started the flow. (PROPOSED)
+Where one host sends the browser to another with a code in the URL (a sign-in handed from an auth
+host to a tenant's host, an OAuth callback), the host that starts the flow sets a nonce in a cookie
+only it can read (a `__Host-` cookie) and passes only the nonce's hash along. The code is stored
+with that hash, and spending it requires the cookie whose hash matches, checked in the same
+statement that spends the code, so a wrong nonce does not burn it.
+
+**Why:** a code that is single-use, short-lived and kept out of the `Referer` is still a login CSRF
+when nothing ties it to a browser. Any page can send a victim's browser to the accept URL with a
+code the attacker minted for their own account, and the victim is signed in as the attacker, typing
+their own data into the attacker's account. One service's review found exactly that in a handoff
+that had all three of the other protections.
+
+**Enforced by:** Engineer — a test that a code is spent only in the browser that asked for it,
+mutation-tested by removing the nonce check (TS-5).
+
+**Prior art:** OAuth 2.0's `state` parameter (RFC 6749, section 10.12) and PKCE (RFC 7636).
