@@ -90,7 +90,10 @@ item is unclaimed or its claim has expired, renewed while the item is worked, re
 `finally`. Its store is one every consumer on every host reaches. Each grant carries a fencing
 token that rises monotonically, recorded with every write made under it, so a write from a consumer
 whose lease lapsed is detectable. Where an item needs several claims, every consumer takes them in
-the same fixed order. Losing a lease mid-item stops work on it without committing.
+the same fixed order. Losing a lease mid-item stops work on it without committing. A report of
+success is fenced like any other write: one that skips the check its failure report makes lets a
+send that outlived its lease mark the item done, though the item has since been changed or claimed
+again.
 
 **Why:** a lock without expiry is held forever by a consumer that died holding it; a lock without
 fencing cannot tell a live owner from one that woke after its lease ran out; a host-local lock is
