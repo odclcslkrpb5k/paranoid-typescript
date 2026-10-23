@@ -64,6 +64,14 @@ settings; for a host-wide log driver, the host bootstrap's check of `daemon.json
 Undoing restores the previous image, `.env` and compose file, and is watched the same way. With
 nothing to return to, the service is stopped rather than left crash-looping.
 
+A release script delivered over `ssh`'s standard input survives the session dropping. Bash reads
+such a script as it runs it, so a dropped session would cut it off mid-release: the whole body is
+one function, called on the last line. And once the session is gone, sshd closes the pipes of a
+session with no terminal rather than sending a hangup, so the next write raises SIGPIPE in bash or
+kills `docker compose`, whatever the HUP trap says: after its arguments are checked, the script
+sends its output to a log on the host (`exec >>release.log 2>&1`), and only its exit status reaches
+the caller. (PROPOSED)
+
 **Why:** a release that touches the running service before checking the host and the configuration
 can take it down for a problem it could have found first. One that does not watch the new container
 reports success for a service that is crash-looping.
