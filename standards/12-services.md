@@ -538,3 +538,25 @@ way.
 value the race has since replaced, and assert it refuses. Mutation-test the predicate (TS-5).
 
 **Prior art:** time-of-check to time-of-use (TOCTOU), CWE-367.
+
+### SV-32 (MUST) An answer that is not a success never carries a long-lived cache. (PROPOSED)
+A header set for a route lands on every answer the route gives, its errors included, unless the
+server is told otherwise. Set a long or `immutable` cache only on a success, and give an error
+answer `no-store`. Answers the server builds itself (its own 404, 502 or 503) can take a path the
+site's header settings never reach, so a header the site removes (`Server`, a proxy's `Via`) is
+removed there too. In Caddy, the site's `header` directive applies before the handler runs and
+does not reach its own errors; a `handle_errors` block sets `Cache-Control no-store` and repeats
+the removals.
+
+**Why:** a release served its hashed assets with a year-long `immutable` cache set on the asset
+route. A browser that asked a node mid-release for an asset not yet published there got a 404
+under that cache, for a name that never changes, so the page stayed broken for that client. On
+Caddy 2.11.7 the 404 carried the immutable header and `Server: Caddy` although the site removed
+`Server`; a `handle_errors` block gave it `no-store` and no `Server`.
+
+**Enforced by:** Engineer — a test that requests a missing hashed asset and asserts the 404 carries
+`no-store` and none of the removed headers, and one that asserts the same of the proxy's answer
+when the service is down.
+
+**Prior art:** nginx's `add_header` applies only to success and redirect codes unless given
+`always`; RFC 9111 lets a cache store a 404 for as long as its explicit freshness says.
