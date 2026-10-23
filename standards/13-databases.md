@@ -34,9 +34,14 @@ sequence shared by every table is also worth having: an id then never names two 
 tables, so one passed to the wrong table finds nothing rather than the wrong row. The test
 enumerates every table from the catalog, partitioned ones included, and asserts each key's width
 and default.
+The same test refuses a column of the key's type, or named as a reference (`*_id`), that is neither
+its table's own key nor a column of a foreign key: such a column passes the width check and is
+invisible to every check that reads the catalog's constraints, a tenancy check among them.
 
 **Why:** a `Number()` that hid an `int8`/`int4` split for months is where the coercion rules (BD-2)
-came from.
+came from. In another schema, a `*_id` column with no foreign key passed the width check and
+escaped every tenancy check that read `pg_constraint`: a reference across tenants waiting to
+happen.
 
 **Enforced by:** Engineer — the catalog test.
 
