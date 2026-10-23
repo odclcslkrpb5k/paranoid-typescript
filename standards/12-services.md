@@ -118,11 +118,16 @@ caller may send it again (SV-21) or must settle it by reading (SV-14). A refusal
 server cancelled and rolled back (Postgres 57014), and a failure before anything was sent (no
 connection to be had, a refused connection, 08001, 57P03, 53300) are retryable; a connection lost
 after sending (the rest of class 08, a reset, 57P01) and a client deadline that passed after
-sending are outcome-unknown. A test pins each code's class. (PROPOSED)
+sending are outcome-unknown. A test pins each code's class. The class belongs to a request, not to
+its last statement: once a write of the same request has committed, any later failure answers the
+may-have-taken-effect code, whatever the failing statement's own class, or the calls become one.
+(PROPOSED)
 
 **Why:** callers branch on codes (ER-8). A caller that treats any 404 as a deletion deletes real
 data the day a path is built wrong. One registry's first review marked every database failure
-retryable, which would have sent a write that had landed a second time.
+retryable, which would have sent a write that had landed a second time. Its next review found a
+handler that made two committing calls answer the second call's `busy`, retryable, after the first
+had committed; the client's retry then found the invitation already spent.
 
 **Enforced by:** Engineer — the registry test.
 
