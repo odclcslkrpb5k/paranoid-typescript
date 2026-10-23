@@ -110,8 +110,16 @@ statuses live in one table, which a test compares exactly, so renaming a code is
 rather than a silent break in every caller. A missing record, a malformed request and an unmatched
 route are different codes, even when all three are 404.
 
+Each code also says whether the operation may have taken effect, since that decides whether a
+caller may send it again (SV-21) or must settle it by reading (SV-14). A refusal, a statement the
+server cancelled and rolled back (Postgres 57014), and a failure before anything was sent (no
+connection to be had, a refused connection, 08001, 57P03, 53300) are retryable; a connection lost
+after sending (the rest of class 08, a reset, 57P01) and a client deadline that passed after
+sending are outcome-unknown. A test pins each code's class. (PROPOSED)
+
 **Why:** callers branch on codes (ER-8). A caller that treats any 404 as a deletion deletes real
-data the day a path is built wrong.
+data the day a path is built wrong. One registry's first review marked every database failure
+retryable, which would have sent a write that had landed a second time.
 
 **Enforced by:** Engineer — the registry test.
 
