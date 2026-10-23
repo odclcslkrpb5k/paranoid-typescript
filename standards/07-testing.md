@@ -102,9 +102,16 @@ refused" path aimed at a port the runtime refuses before connecting, proves noth
 test runner started from inside a test to prove a check fails, if it inherits the parent's
 `NODE_TEST_CONTEXT` and reports upward instead of failing.
 
+A comment that says a line is needed for a behaviour is a claim, and is mutated like a guard:
+remove the line and run the test of that behaviour. A survivor means the line goes, or the comment
+does, and the test is strengthened if the behaviour is real.
+
 **Why:** a test written from a report restates the report's happy path. In one ship, three of six
 regression tests passed with their bug reinstated. Restoring from git once discarded eight
-uncommitted fixes; a basename-keyed copy restored one file over another.
+uncommitted fixes; a basename-keyed copy restored one file over another. Two lines in one ship
+were "required" by their comments, a fetch that sent no `Accept` header so the browser would reuse
+a preload, and a dialog closed rather than removed so focus would return; with each removed, the
+tests of that behaviour still passed, and both lines went.
 
 **Enforced by:** Engineer for the mechanics (the tool); Administer that it is run, in the ship
 cycle. Missing Engineer control: the ship tool refuses to commit a new regression or checker test
