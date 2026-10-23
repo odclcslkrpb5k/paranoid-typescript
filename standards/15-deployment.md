@@ -211,3 +211,28 @@ worker with no public face cannot be given an HTTPS route without taking the por
 
 **Enforced by:** Engineer — the site installer's validation and rollback, rehearsed; a contract
 test in each service refusing a production compose file that publishes a port.
+
+### DE-15 (SHOULD) Replicas roll behind the proxy without an unanswered request, and a test holds the timings to each other. (PROPOSED)
+A replica being replaced fails the proxy's own health check as soon as it starts to drain, so the
+proxy stops sending to it while it still answers. The timings depend on each other, and a test over
+the compose file and the proxy's configuration holds them:
+- the time the proxy takes to drop a draining replica, (check interval + check timeout) × failures
+  needed, is shorter than the drain;
+- at least two failed checks are needed, so one slow check never empties the rotation while the
+  other replica is being replaced;
+- the proxy's idle keep-alive is shorter than the application's own, so the proxy never sends on a
+  connection the application has just closed;
+- a new replica passes enough checks before it is sent traffic that one which dies soon after
+  starting is sent nothing.
+
+The release waits until the proxy answers with the new replica's name and release, watches it for a
+while, and confirms it still answers before it replaces the next. It refuses to restart the
+database: a changed database configuration (Compose's `config --hash` against the running
+container's label) gets a window of its own.
+
+**Why:** a liveness check that stays healthy through a drain keeps the replica in rotation until
+its listener closes, and a POST then sent down a pooled connection gets the proxy's 502, since the
+proxy retries only requests that never connected. With these timings held, one service answered
+every one of about 55,000 requests under load through every roll and put-back of its rehearsal.
+
+**Enforced by:** Engineer — the timing test, and the rehearsal under load (DE-9).
