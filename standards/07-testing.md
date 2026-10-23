@@ -89,7 +89,9 @@ tool:
   every test passed, one because it lengthened a line past the formatter's width and one because it
   tripped a lint rule;
 - counts a check that fails for a reason other than the code (the container did not start, a
-  dependency could not be fetched, a signal killed it) as inconclusive;
+  dependency could not be fetched, a signal killed it) as inconclusive, and so judges a planted bug
+  by a reason its log must show, not only by the step that failed: judged by step, a network
+  failure at a dependency-audit step would have proved both the licence and the advisory controls;
 - keeps a whole copy of each mutated file, keyed on its full path, and restores from the copy,
   never from version control, which discards uncommitted work;
 - runs one mutant at a time, and nothing else reads the tree while a mutant is applied.
