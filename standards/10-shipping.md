@@ -226,7 +226,10 @@ rehearsal for a change to deploy files — is kept as data: a pattern over chang
 label and its exact command. The commit step diffs the remote's main against the shipped tree and
 refuses unless the latest run of every matching step passed against that tree. It fails closed: an
 invalid pattern or malformed line refuses the ship; the rules are read from the remote as well as
-the tree, so one ship cannot drop the step it needs; a rename lists both names.
+the tree, so one ship cannot drop the step it needs; a rename lists both names. The command a rule
+names and the command a step's record holds are compared in one form: a timer that records a
+script's path resolved to an absolute one resolves the rule's the same way, or a rule naming
+`deploy/rehearse.sh` never matches a rehearsal that passed.
 
 **Why:** a table of which suites to run, applied from an agent's memory, was skipped. Its first
 encoding failed open four ways — an invalid regex counted as no match, a last line without a
