@@ -196,6 +196,11 @@ it). It scans the commit message too. Requirements the tool must meet:
   binary (one with a NUL byte near its start) only as "Binary files differ", and GNU grep under a
   UTF-8 locale, meeting a byte that is not valid UTF-8, prints "binary file matches" and suppresses
   the matching lines. Either way the content passes unscanned while the gate reports clean.
+- Fix every flag that lets configuration change what `git diff` prints: `--no-ext-diff`,
+  `--no-textconv`, `--no-color` and explicit prefixes. A user's `diff.<driver>.textconv`, selected
+  by a tracked `.gitattributes`, rewrites the added lines just as an external diff does: with one
+  in place, an added `secret` printed as `SECRET`, and only `--no-textconv` showed the line as
+  committed.
 - Write a token's prefix rule as a lookbehind, not `\b`: no word boundary falls between `bot` and
   the digits of `bot<id>:<token>`, or after the `_` of `KEY_AKIA...`.
 - Keep placeholder rules case-sensitive: `[A-Z_]+` under the `i` flag matches every word, so a
