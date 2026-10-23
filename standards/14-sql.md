@@ -19,13 +19,18 @@ functions checked and zero findings are the same answer (TS-6).
 **Enforced by:** Engineer — the test.
 
 ### SQ-2 (SHOULD) Label every function's volatility: `stable` for reads, `immutable` for pure computation, unlabelled only for writers.
-An error raiser is `stable`. Generated SQL is held to the same rule.
+An error raiser is `stable`. Generated SQL is held to the same rule. A `stable` or `immutable`
+function reads under the snapshot of the statement that calls it, taken before any volatile call in
+that statement writes: `return x_json(make_x(...))` looks up a row that, in its snapshot, does not
+exist yet, and answers null. Assign the writer's result in a statement of its own first
+(`v := make_x(...); return x_json(v);`), with a comment saying why, so nobody folds it back.
 
 **Why:** Postgres does not enforce labels. An unlabelled read-only helper defaults to `volatile`,
 is re-evaluated per row, and makes every `stable` caller call a volatile expression; 32 of one
 schema's 41 findings were its unlabelled raiser, emitted by a generator no review looked at.
 `immutable` is wrong for a raiser: called with constants, it is folded at plan time and raises
-before the branch meant to guard it.
+before the branch meant to guard it. In one schema, `return project_json(make_project(...))`
+returned null and every create answered 500; `plpgsql_check` does not flag it.
 
 **Enforced by:** Engineer, partly (`plpgsql_check` sees a `stable` function calling a `volatile`
 one). Missing Engineer control: a catalog test that every `volatile` function is on an explicit
