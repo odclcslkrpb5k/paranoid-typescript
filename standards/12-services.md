@@ -560,3 +560,25 @@ when the service is down.
 
 **Prior art:** nginx's `add_header` applies only to success and redirect codes unless given
 `always`; RFC 9111 lets a cache store a 404 for as long as its explicit freshness says.
+
+### SV-33 (MUST) A redirect target taken from a request is a path on the same host, checked where it is used as well as where it is taken. (PROPOSED)
+A return path (`?to=`, `next=`, a sign-in's "come back here") is accepted only as one slash
+followed by visible ASCII with no backslash, never starting `//`, and of bounded length; anything
+else falls back to `/`. One function makes that check, and every place that redirects to a stored
+target calls it again: a cookie or a row holding the target can be set by another tool, by an older
+release, or by the client itself. Keep the stored copy where the client cannot write it, a
+host-only (`__Host-`) HttpOnly cookie or a server-side session, but do not rely on that alone.
+
+**Why:** a deep link opened while signed out must come back after a sign-in on another host, so the
+path is stored across the round trip. A check made only where it was stored would turn any other
+way of setting that cookie into an open redirect. The character rule is the browser's, not the
+server's: Node 24.22's WHATWG URL parser resolves `/\evil.com` and `/<tab>/evil.com` against
+`https://app.example` to the host `evil.com`, as it does `//evil.com`, while `/%2F/evil.com` stays
+on `app.example`.
+
+**Enforced by:** Engineer — the one checking function, and a test that sends bad targets to the
+first step and a forged stored target straight to the step that redirects. Mutation-test the check
+at both places (TS-5).
+
+**Prior art:** CWE-601, URL redirection to an untrusted site ("open redirect"); the WHATWG URL
+standard's treatment of backslashes and stripped tabs and newlines in special schemes.
