@@ -76,6 +76,11 @@ a reader.
 evaluation of subexpressions is not defined and recommends `case` where it matters.
 
 ### SQ-6 (SHOULD) Test every boolean function with a null argument, and every CHECK meant to forbid a state with the column null.
+A CHECK on an array pins its shape as well as its contents: `cardinality` counts every element of
+every dimension and `= any` searches them all, so a CHECK of "1 to 100 values, no nulls" accepts
+`'{{1,2},{3,5}}'`, which `to_json` emits as `[[1,2],[3,5]]` and breaks a `number[]` contract. Add
+`array_ndims(x) = 1`. For `numeric`, `'NaN' = 'NaN'` is true, so `'NaN'::numeric = any(x)` does
+catch a NaN, and `to_json` writes NaN and Infinity as strings.
 
 **Why:** a predicate returned `NULL` rather than `false` because its `coalesce` sat inside a scalar
 subquery; `not NULL` is `NULL`, the guard branch was not taken, and an authorization check failed
