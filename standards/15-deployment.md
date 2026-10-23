@@ -62,7 +62,11 @@ settings; for a host-wide log driver, the host bootstrap's check of `daemon.json
 
 ### DE-4 (MUST) A release checks the server first, validates configuration before touching the running service, watches the new container, and undoes itself if it does not stay up.
 Undoing restores the previous image, `.env` and compose file, and is watched the same way. With
-nothing to return to, the service is stopped rather than left crash-looping.
+nothing to return to, the service is stopped rather than left crash-looping. The previous image is
+the one the running container actually uses, read by id (its `.Image`) before anything is touched
+and tagged again on the way back: not what `.env` names, which an interrupted release has already
+changed, and not what a tag points to now, which may have moved. An id that is gone means there is
+no way back.
 
 A release script delivered over `ssh`'s standard input survives the session dropping. Bash reads
 such a script as it runs it, so a dropped session would cut it off mid-release: the whole body is
@@ -74,7 +78,9 @@ the caller. (PROPOSED)
 
 **Why:** a release that touches the running service before checking the host and the configuration
 can take it down for a problem it could have found first. One that does not watch the new container
-reports success for a service that is crash-looping.
+reports success for a service that is crash-looping. After an interrupted release, `.env` named the
+new image while the old one still ran, so a rollback that restored the previous `.env` would have
+run the wrong image and stopped healthy replicas.
 
 **Enforced by:** Engineer — the release script, rehearsed (DE-9). Splitting it so the server half
 runs unchanged under the rehearsal keeps the rehearsal honest.
