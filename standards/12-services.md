@@ -479,3 +479,16 @@ means not a browser form" opened a logout CSRF in one service's first version.
 
 **Enforced by:** Engineer — a test that only a well-formed bearer token skips the Origin check,
 with a Basic header and a malformed bearer among its cases.
+
+### SV-29 (MUST) A decision about what a dependency verified is taken from that dependency's answer, at the call. (PROPOSED)
+Where a request is trusted more because a backend accepted something (a token the database
+recognized, a signature a service checked), the call site records the backend's own answer on the
+request. Nothing later reconstructs it from the outer response's status.
+
+**Why:** one service exempted a token "the database had accepted" from a hold on refused tokens,
+judged by any response below 500 other than 401. A 404 for an unknown path, or a 403 from a
+session-only route, gave such a response without any database call, so a forged token could vouch
+for itself and reopen the unlimited database calls the hold existed to stop.
+
+**Enforced by:** Engineer — the answer is a typed value the call returns, and a test sends a forged
+token to a route that never consults the backend.
