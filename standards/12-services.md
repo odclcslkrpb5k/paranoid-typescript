@@ -492,3 +492,24 @@ for itself and reopen the unlimited database calls the hold existed to stop.
 
 **Enforced by:** Engineer — the answer is a typed value the call returns, and a test sends a forged
 token to a route that never consults the backend.
+
+### SV-30 (MUST) A rate limit can be neither reset nor spent by someone it does not limit. (PROPOSED)
+- **An in-memory limiter never evicts a partly spent bucket.** Bounded by a number of keys, a new
+  key replaces only a full bucket among those used longest ago, and is refused when none is full:
+  it fails closed, and the bound is chosen with that in mind.
+- **A limit keyed by a shared resource (a tenant, an account) is spent only by requests authorised
+  to act on it.** Check it before the call and debit it only on success; an unauthenticated or
+  refused request is limited by the caller's own key. The overshoot is bounded by the number of
+  concurrent requests.
+- **Keys are what one caller cannot vary.** An IPv6 client is keyed by its /64, since a subscriber
+  chooses freely within it; a proxy's client-address header counts only when it parses as exactly
+  one address.
+
+**Why:** a limiter that evicts the least recently used bucket lets an attacker flood new keys until
+the target's spent bucket is gone, and the target's limit comes back full: keyed by account, that
+undoes a limit on password guessing. In another service, a tenant's invitation allowance was spent
+before the session was checked, so anyone with a well-shaped cookie could exhaust it for the
+tenant's administrators.
+
+**Enforced by:** Engineer — a test per bullet: a flood of new keys leaves a spent bucket spent; a
+refused request spends nothing of the shared allowance; addresses within one /64 share a bucket.
