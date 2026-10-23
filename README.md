@@ -94,6 +94,7 @@ meet a rule, not the only one.
 - [Paranoid Python (Django)](appendices/python-django.md)
 - [Paranoid TypeScript (React)](appendices/typescript-react.md), for browser applications
 - [Paranoid C (GTK 3)](appendices/c-gtk.md), for Linux desktop applications
+- [Paranoid Rust](appendices/rust.md), begun: panics, unsafe code and the toolchain
 
 An appendix defines no rules of its own. It cites the core rules it serves and says, for each, what
 meets it in that language, where the language leaves a gap, and where a framework forces a
