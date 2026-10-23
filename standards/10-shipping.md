@@ -160,15 +160,18 @@ tree through, is Eliminate: run the final checks against a snapshot the agent ca
 Never read a verdict from filtered output: `check | tail -1` replaces the status with `tail`'s.
 Lint, formatting, type checking, the hook's checks and the host-only tests (TS-10) run from one
 gate script. Commit, push and release run from another, which on a second run resumes from
-whichever step already happened. A finding and a crash never share an exit status: a checker that
-exits 1 for a finding cannot be told from a runtime that exits 1 on an uncaught exception, so
-findings get their own code.
+whichever step already happened. The suites and rehearsals a ship calls for (SH-13) run from a
+script too, after the gate and only once it has passed, never as a hand-typed chain. A finding
+and a crash never share an exit status: a checker that exits 1 for a finding cannot be told from a
+runtime that exits 1 on an uncaught exception, so findings get their own code.
 
 **Why:** `lint | tail -1` showed "Checked 247 files" with the error above it, twice in one session;
 `gate | tail && git commit` shipped a failing test; a commit joined to a release with `;` was
-refused by its hook while the release ran anyway, restarting a service for nothing.
+refused by its hook while the release ran anyway, restarting a service for nothing; and a ship's
+timed steps, chained by hand with `;`, ran a 22-minute rehearsal after the gate had already
+failed.
 
-**Enforced by:** Engineer — the two scripts.
+**Enforced by:** Engineer — the scripts.
 
 ### SH-12 (MUST) Scan what is pushed for secrets and sensitive data.
 Patterns for shaped secrets (cloud keys, private-key bodies, passwords in URLs, the project's own
