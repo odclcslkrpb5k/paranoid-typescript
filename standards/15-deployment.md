@@ -115,8 +115,17 @@ replacement, a container that dies after starting, rollback, failed rollback. De
 the way production does (over stdin, as `ssh` does): run as a file, it hid a `docker compose run`
 that read the rest of the script from stdin.
 
+A failure path passes only when it reached the step it targets: it asserts the release's own words
+for that step ("api-1: restored"), not only its exit status, and a stand-in fails only as the
+process it targets (a wrapper that checks the command it was given), never by replacing every
+process's entrypoint.
+
 **Why:** release scripts run rarely and fail at the worst moment. Rehearsal found a rollback that
-tried to pull from Docker Hub and left a broken image restarting.
+tried to pull from Docker Hub and left a broken image restarting. In another, the stand-ins for a
+bad image and for one that dies after starting replaced every process's entrypoint, so the
+migration failed first and the release exited 1 having replaced nothing: both put-back paths passed
+in four seconds, and so did a failed rollback that exited through `set -e` before it stopped the
+crash-looping replica.
 
 **Enforced by:** Engineer — a rehearsal script that runs every path in one command, required by the
 ship (SH-13) when deploy files change.
