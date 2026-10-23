@@ -89,3 +89,26 @@ written.
 
 **Enforced by:** Administer. Missing Engineer control: a test that commits two writers out of id
 order and asserts a resuming reader sees both.
+
+### DB-7 (SHOULD) A page cursor carries the values its list is ordered by, not only the last row's id. (PROPOSED)
+A cursor for a list ordered by a column that can change holds that column's value with the id,
+and the next page is the rows after that pair: `where (updated_at, id) < ($at, $id)`, with an index
+on `(updated_at, id)` in the same order. Read one row more than the page, so `next` is absent
+exactly when nothing follows. Encode a timestamp as whole microseconds since the epoch:
+`extract(epoch from ts)` is `numeric`, and `timestamptz 'epoch' + n * interval '1 microsecond'`
+gives the same value back only while `n` is below 2^53, about the year 2255, since the
+multiplication goes through `double precision`. A test changes the cursor's row between pages, in
+each order the list offers.
+
+**Why:** a cursor of only the last row's id, whose sort value was read again on the next request,
+drifted as soon as that row changed. Newest first, editing the last row shown made the next page
+repeat everything before it; oldest first, it ended the list early; a deleted cursor row ended it
+silently. A review found it; no example-based test had. Reading exactly a page also offered an
+empty page after every full last one.
+
+**Enforced by:** Engineer — the test that edits the cursor's row between pages, mutation-tested by
+widening `<` to `<=` and reading one row fewer (TS-5).
+
+**Prior art:** key-set pagination ("seek method"), and Postgres's row-value comparison, which an
+index on the same columns serves: on Postgres 18.6, `(updated_at, id) < (...)` ordered by both
+descending ran as an index-only scan.
