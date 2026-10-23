@@ -467,3 +467,15 @@ that had all three of the other protections.
 mutation-tested by removing the nonce check (TS-5).
 
 **Prior art:** OAuth 2.0's `state` parameter (RFC 6749, section 10.12) and PKCE (RFC 7636).
+
+### SV-28 (MUST) A check skipped for requests that are not from a browser names the credential that proves it. (PROPOSED)
+An Origin or CSRF check may be skipped only for a request carrying a well-formed credential of a
+scheme a browser never sends by itself, such as `Authorization: Bearer <token>` in the token's own
+format. Any other `Authorization` header is ignored, and the cookie and its Origin check decide.
+
+**Why:** a browser attaches `Authorization: Basic` by itself once a user has signed in to a proxy
+with Basic authentication, as staging hosts often have. A rule that read "any Authorization header
+means not a browser form" opened a logout CSRF in one service's first version.
+
+**Enforced by:** Engineer — a test that only a well-formed bearer token skips the Origin check,
+with a Basic header and a malformed bearer among its cases.
