@@ -300,6 +300,10 @@ were each met in a real script.
   where bash exempts it: in `git read-tree HEAD && git add -A`, a failed `read-tree` skips `git
   add` and the script carries on to hash a stale index. Group the chain and end it with an explicit
   `die`.
+- Never test membership by joining an array into a string. With `IFS=$'\n\t'`, a common strict
+  setting, `" ${names[*]} "` joins with newlines, so `[[ $s == *" two "* ]]` is false for a name
+  that is there (bash 5.3): a runner given two plants by name ran none and exited 0. Loop over the
+  array, and fail when the selection matched nothing (TS-6).
 - Under `pipefail`, read a log to its end (`grep >/dev/null`, not `grep -q`): `grep -q` quits at
   the first match, the writer upstream dies of SIGPIPE, and a real failure reads as something else.
 - `unset CDPATH` as well, in case the script is ever run without `-p`: with it set, `cd` may print
