@@ -51,6 +51,10 @@ service directory lacks the compose file or a `.env` of mode 600.
   fails rather than being looked up on a public registry.
 - Bind mounts that must exist use the long syntax with `create_host_path: false`, so a missing file
   fails rather than becoming a root-owned directory.
+- A database's healthcheck goes the way the service connects. The stock Postgres image runs its
+  init scripts on a temporary server that listens only on the unix socket, so `pg_isready` without
+  `-h` passes during initialisation and a first release's migration races it: use
+  `pg_isready -h 127.0.0.1`.
 
 **Why:** Docker's default ten-second grace kills work halfway; its default log driver never
 rotates, and a container that runs for months fills the disk. Rotation at 10 MB × 3 kept about a
