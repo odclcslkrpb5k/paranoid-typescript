@@ -14,10 +14,11 @@ hazard comes first for that reason, judged on the ladder like a rule.
 clipboard data from local applications and messages from the network, with a GTK user interface in
 a separate process. It plants a bug against each control and asserts the gate fails at that
 control's step, for the reason the control gives. Each setting below was checked on 2026-10-23
-against rustc 1.99.1, clippy 0.1.99 and cargo-deny 0.20.2. Not yet measured, and so not yet
-written: fuzzing, the panic strategy (`unwind` or `abort`) and what it contains, `overflow-checks`
-in a release build, and cargo-mutants. Read every item as (PROPOSED) until that project has run it
-for a while. Tool options change between versions; check each against the version you install.
+against rustc 1.99.1, clippy 0.1.99, cargo-deny 0.20.2, cargo-mutants 27.1.0 and cargo-fuzz 0.13.2
+on nightly-2026-10-15. Not yet measured, and so not yet written: the panic strategy (`unwind` or
+`abort`) and what it contains, and `overflow-checks` in a release build. Read every item as
+(PROPOSED) until that project has run it for a while. Tool options change between versions; check
+each against the version you install.
 
 ## Panics: a hazard the core never meets
 
@@ -86,8 +87,42 @@ same decoder in safe Rust panics instead. In ladder order:
   `unused_unsafe` whether or not `forbid` reaches the crate, so it proves nothing. Plant an
   `unsafe` call to an `unsafe fn` instead.
 
+## Testing (chapter 07)
+
+- **Fuzz every decoder (TS-16).** Keep the fuzz crate (cargo-fuzz, on a pinned nightly) outside the
+  workspace with a lockfile of its own, and hold it to the same frozen install and dependency
+  checks as the rest (TC-3): fetch with `cargo fetch --locked` before `cargo fuzz run`, which
+  otherwise resolves the lockfile again, and run cargo-deny over its manifest too. The target
+  asserts more than "no panic": what the decoder reports as incomplete really is short, and a
+  decoded frame encodes back to exactly the bytes it consumed. Two libFuzzer options can quietly
+  make the run weaker than it looks:
+  - `-max_len` must reach past the largest limit the decoder enforces, or no input ever tests that
+    limit.
+  - `-max_total_time=0` means no limit: on nightly-2026-10-15 a run given it was still going when
+    `timeout` stopped it at 25 seconds, while `-max_total_time=3` ended in about four. A script
+    that takes the time as a setting refuses 0.
+
+  Planted against a copy of the decoder with its lints removed, an inner length trusted the way
+  CVE-2026-41476's was (`payload[start..start + len]`) was found in under 2.1 seconds from an empty
+  corpus in each of three runs, and while the saved corpus loaded. Replay the corpus as an ordinary
+  test on the stable toolchain, and assert how many inputs it decoded, not how many files it read
+  (TS-6): in that project only 3 of 42 decoded to a message.
+- **cargo-mutants reports a hang as its own outcome, and its exit status hides a miss (TS-5).** A
+  mutant that never ends is `TIMEOUT` under `--timeout`, listed in `mutants.out/timeout.txt`, not
+  counted as caught. On cargo-mutants 27.1.0 the exit status was 2 with missed mutants only, 3 with
+  timeouts only, and 3 with both, so a gate reads `missed.txt` and `timeout.txt` rather than the
+  status. In a debug build an overflow panics, so a mutant turning `+=` into `-=` was caught by
+  `overflow-checks` rather than by an assertion. On the project's decoder the first run missed 17
+  of 71 mutants. Property tests that compared whole values never called a getter. Two methods were
+  never used and were deleted. Neither size limit was tested at its boundary. `Display` was never
+  checked.
+- **A copy of the tree builds into its own target directory (TS-8).** Set `CARGO_TARGET_DIR` inside
+  the tree from the gate, never in the image: cargo-mutants and a plant runner copy the tree, and a
+  shared directory let one copy's test binary run for another.
+
 ## What it does not replace
 
-The lints refuse a panic a decoder could reach; they do not show that it decodes correctly, or
-that its size limits hold before it allocates. Those stay with property tests (TS-16), fuzzing,
-and review.
+The lints refuse a panic a decoder could reach, and fuzzing looks for the inputs that reach one
+the lints were not there to refuse; neither shows that the decoder decodes correctly, or that its
+size limits hold before it allocates. Those stay with property tests (TS-16), mutation testing
+(TS-5), and review.
