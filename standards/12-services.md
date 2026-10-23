@@ -513,3 +513,20 @@ tenant's administrators.
 
 **Enforced by:** Engineer — a test per bullet: a flood of new keys leaves a spent bucket spent; a
 refused request spends nothing of the shared allowance; addresses within one /64 share a bucket.
+
+### SV-31 (MUST) A check acted on in a later call is made again in that call, under a lock the operation it races also takes. (PROPOSED)
+When a decision made in one call is acted on in another, or in the service between the two, the
+acting call re-checks what was decided. In Postgres, the function that acts takes the value that
+was checked and holds the row `for share` with a predicate on it
+(`where password_hash = $checked`), refusing when no row matches; the operation it races updates
+that row first, so under READ COMMITTED the re-check waits for it and then reads the new value.
+
+**Why:** a service verified a password in its own code and then called the database to start a
+session. A password reset that committed during the check had revoked every session, yet left one
+alive: the one started from the stale check. Creating an API token raced the same reset the same
+way.
+
+**Enforced by:** Engineer — a sequential test can pin the re-check: call the acting step with a
+value the race has since replaced, and assert it refuses. Mutation-test the predicate (TS-5).
+
+**Prior art:** time-of-check to time-of-use (TOCTOU), CWE-367.
