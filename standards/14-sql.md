@@ -183,3 +183,22 @@ function. Missing Engineer control: a test per bulk function that runs it at its
 
 **Prior art:** GitLab's account of removing subtransactions from its Postgres workload (2021); the
 cache size is `PGPROC_MAX_CACHED_SUBXIDS` in Postgres's source.
+
+### SQ-11 (SHOULD) SQL a function builds at run time has a test that reads its plan and names the index each query shape is meant to use. (PROPOSED)
+`plpgsql_check` (SQ-1) cannot see a statement built with `format()` and run by `execute`, so only a
+plan shows that a generated query is served by its index. The test seeds, runs `analyze`, and, on
+one reserved connection, sets the function set's `search_path` and runs `deallocate all` first,
+since a prepared statement outlives a rollback. It `prepare`s the generated text and runs `explain
+execute` with literal parameters (`execute` refuses a subquery as one). It turns off
+`enable_seqscan`, `enable_bitmapscan` and `enable_sort`, because over a few hundred rows a sort
+always costs less and the plan would say nothing about a large table, and it asserts the index's
+name. It proves the index can serve the shape, not that the planner chooses it unforced at volume;
+that stays with an EXPLAIN over a seed of production size.
+
+**Why:** a filter compiler's correct fix for a null (SQ-6) made a list's predicate opaque to the
+planner, and nothing failed: the list was still right, only slow at volume. A mutant restoring that
+form was killed by the plan test. On Postgres 18.6, a statement prepared inside a transaction was
+still listed in `pg_prepared_statements` after its rollback, and `explain execute s((select 7))`
+failed with "cannot use subquery in EXECUTE parameter".
+
+**Enforced by:** Engineer — the plan test, one case per query shape the generator can emit.
