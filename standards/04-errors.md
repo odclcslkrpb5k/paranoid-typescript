@@ -70,10 +70,17 @@ it throws, and returns a `Result`.
   adapter as a bare `TypeError`. A vendored client may wrap what `fetch` throws but not its body
   reads; check.
 - **A foreign package's types are claims about it (BD-8).** In postgres.js 3.4.9, `ReservedSql`
-  inherits a declared `begin()` from `Sql` and has none at run time, and `reserve()` on a pool that
-  has never connected never settles when `fetch_types` is `false`. Test each adapter against the
-  real library and a real server (TS-2), and give every wait on foreign code a deadline (SV-20), so
-  a promise that never settles fails the test instead of hanging it.
+  inherits a declared `begin()` from `Sql` and has none at run time; `reserve()` on a pool that has
+  never connected never settles when `fetch_types` is `false`; a statement on a reserved connection
+  whose backend has gone crashes the process with an uncaught `TypeError` inside the driver, and
+  nothing tells the holder while the reservation sits idle; and a string bound to a `$n::jsonb`
+  parameter is stored as a JSON string, so `${JSON.stringify(x)}` stores `"{\"a\":1}"`, whose
+  `jsonb_typeof` is `string`. Test each adapter against the real library and a real server (TS-2),
+  with a test that pins each such behaviour, and give every wait on foreign code a deadline
+  (SV-20), so a promise that never settles fails the test instead of hanging it. Where the
+  library's surface is the hazard, take it away: a service whose requests are each one call can
+  have a pool type with no reservations or transactions at all, with a type-level test that
+  `reserve` does not exist on it.
 
 **Why:** libraries throw from wherever they are called, so they are called from one place. That
 place is also the only one that knows the library's error marks, so it is the only place a failure
