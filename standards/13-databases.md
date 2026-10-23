@@ -70,14 +70,39 @@ a number, and an applied file now missing at or below the image's highest number
 numbered above the image's highest belongs to a newer release and is left alone: that is the
 previous image starting after a rollback, which must succeed.
 
+One exception, for an index built without blocking writes. (PROPOSED) A file whose only statement
+is `create index concurrently` runs outside a transaction, since Postgres refuses that statement
+inside one; a file holding it beside any other statement is refused. The migrator takes over what
+the transaction gave:
+- **A failed build leaves an index behind.** A cancelled `create index concurrently` leaves an
+  INVALID index, and a retry with `if not exists` skips it as present. Before building, drop
+  (`drop index concurrently`) an invalid index of that name that no session is still building.
+- **Ask who is building with `not exists`.** `pg_stat_progress_create_index` shows another role's
+  build with a null `index_relid`, so `indexrelid not in (select index_relid ...)` matches no index
+  at all, and `not exists` is needed.
+- **Bound it by `statement_timeout`, not `lock_timeout`.** The build waits for every older
+  transaction to end, and a `lock_timeout` cancels that wait and leaves the invalid index. Set
+  `lock_timeout` to 0 under a `statement_timeout` for the build, and set both again before each
+  later step, since they outlive the statement on that connection.
+- **Record only a valid index.** Write the file's record after the build, and only once
+  `pg_index.indisvalid` is true for it; a crash between the two reruns the file, which then finds
+  the valid index and records it.
+
 **Why:** a migration is read by people and tools other than the service — `psql` during an
-incident, a reviewer reading the diff as SQL — and in a TypeScript string it serves none of them.
+incident, a reviewer reading the diff as SQL — and in a TypeScript string it serves none of them. A
+plain `create index` holds a lock that blocks every write to the table until the build ends, which
+on a large table is an outage, so the exception exists. Each of its traps was reproduced on
+Postgres 18.6: a build under `lock_timeout` cancelled while an older transaction ran left an
+INVALID index that `if not exists` then skipped, and, run as another role while a build was in
+progress, the `not in` form matched none of 164 indexes where `not exists` matched all of them.
 
 **Enforced by:** Engineer — the migrator, with a test per refusal. Testing the transaction: a
 failing multi-statement migration leaves nothing behind even without one (Postgres runs a
 multi-statement simple query as one implicit transaction), so test what the explicit transaction
 adds — that a file and its record commit together — with a migration that makes its own record
-unwritable.
+unwritable. For the exception, a test cancels a build and asserts the next run drops the invalid
+index, builds it and records it, and one asserts a file with any other statement beside the build
+is refused.
 
 ### DB-6 (SHOULD) A cursor clients resume from is issued in commit order.
 A sequence hands out values before the transaction commits, so two writers can commit in the
