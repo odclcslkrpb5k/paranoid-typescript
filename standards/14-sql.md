@@ -59,6 +59,10 @@ control: a catalog test that lists every function returning `json` or `jsonb` an
 no key-set test registered for it.
 
 ### SQ-5 (SHOULD) Validate caller input before casting it in SQL, and never cast a raw parameter to a date or time.
+"Before" means a statement of its own, an `if` that returns or raises, or a `case`, never another
+operand of the same boolean expression: SQL does not promise to evaluate `and` and `or` from left
+to right, so `jsonb_typeof(p) <> 'number' or (p)::numeric < 0` may run the cast first and raise
+22P02 instead of the coded refusal.
 
 **Why:** `(p ->> 'typeId')::int` turned `{"typeId":"abc"}` into a 500 naming a cast.
 `'now'::timestamptz` is valid, as are `yesterday` and `infinity`, each silently meaning something.
@@ -67,6 +71,9 @@ no key-set test registered for it.
 string literals); Administer for the judgement. Missing Engineer control: a check refusing a cast
 of a parameter to a date or time type in `.sql` files; whether other casts follow validation needs
 a reader.
+
+**Prior art:** the Postgres manual, "Expression Evaluation Rules", which says the order of
+evaluation of subexpressions is not defined and recommends `case` where it matters.
 
 ### SQ-6 (SHOULD) Test every boolean function with a null argument, and every CHECK meant to forbid a state with the column null.
 
