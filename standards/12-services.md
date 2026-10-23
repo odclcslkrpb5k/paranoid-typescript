@@ -271,6 +271,16 @@ What "deadline" means depends on what the call reaches:
   only to notice silence, and destroy the connection when it fires. Migrations taken at boot under
   an advisory lock (DB-4) wait on purpose, so they have a bound of their own, not the request
   deadline, or a second instance booting during a long migration fails instead of waiting.
+- **A driver's cancel is foreign code too.** A deadline never ends a sent statement through the
+  driver's cancel unless the adapter can check what that cancel did. In postgres.js 3.4.9 a cancel
+  opens a socket of its own whose failure is discarded inside the driver and crashes the process;
+  with pipelining it stops whatever the backend is running, which may be the statement ahead; and a
+  cancelled statement queued on a connection can stall the statements behind it or lose the
+  connection for good. Gate the connections in the adapter instead: one permit per connection, a
+  statement waits in the adapter unsent, one still waiting at its deadline is never sent, one is
+  sent only while enough of its deadline remains for the server's `statement_timeout` to end it in
+  time, and its permit comes back only when the driver settles it. One adapter's six reviews each
+  found another edge of the driver's cancel; the gate closed them all. (PROPOSED)
 - **Subprocesses:** the child is killed when the deadline passes, and the caller checks the abort
   signal rather than the exit status, since an aborted child may report an ordinary exit (ER-10).
 - **Clients that take no signal:** the call can only be raced against the deadline and abandoned.
