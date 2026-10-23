@@ -82,9 +82,20 @@ every dimension and `= any` searches them all, so a CHECK of "1 to 100 values, n
 `array_ndims(x) = 1`. For `numeric`, `'NaN' = 'NaN'` is true, so `'NaN'::numeric = any(x)` does
 catch a NaN, and `to_json` writes NaN and Infinity as strings.
 
+A predicate a caller may wrap in `not` is made two-valued, and in a form an index can still serve:
+`col is not null and col = any($1)` on a nullable column, with `or col is null` added only where
+the caller asks for rows with none. `coalesce(col = any($1), false)` is two-valued too, but the
+planner cannot use an index through it. A test pins the list of nullable columns the generator
+knows against the catalog, so a column made nullable later is not missed.
+
 **Why:** a predicate returned `NULL` rather than `false` because its `coalesce` sat inside a scalar
 subquery; `not NULL` is `NULL`, the guard branch was not taken, and an authorization check failed
-open. A CHECK passes on `NULL`. No type system sees either.
+open. A CHECK passes on `NULL`. No type system sees either. In a compiled filter,
+`not (assignee_id in (...))` is null for a row with no assignee, so "not assigned to them" dropped
+every unassigned row; a property test (TS-16) found it on its first run. On Postgres 18.6, over
+20,000 rows a third of them null, that `not` kept 13,067 rows where `is distinct from` kept 19,733,
+and `coalesce(... = any(...), false)` turned an index scan into a sequential scan, while
+`col is not null and col = any(...)` kept the index.
 
 **Enforced by:** Administer. Missing Engineer control: a catalog test that every `returns boolean`
 function has a null-argument case.
