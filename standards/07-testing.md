@@ -167,6 +167,10 @@ image built earlier. A suite that drives a long-running service recreates it in 
   configuration file skips the check on a change to that file, and the check reports success.
 - **A test enumerates the build's configuration files** and fails when one is missing from a cache
   key or a path filter, and a planted change to the configuration must change the output (CP-3).
+- **Two trees never share a build cache.** A copy of the tree (a planted bug, a mutant, a second
+  checkout) builds into a cache inside itself, and the gate sets that location rather than
+  inheriting one from the environment: a cache that names its outputs by a relative path and judges
+  them fresh by modification time takes a copy's output for the tree's own.
 
 **Why:** a stale image passes with the same count, colour and duration as a real run. Three green
 suites in one ship ran a tree that was already red. One change that moved a frontend's compiler
@@ -182,6 +186,14 @@ settings into the transformer's own configuration file found four instances of t
   never redeployed for a TypeScript-only change.
 
 Review found all four; no check could have.
+
+A project whose plant runner copied the tree for each planted bug shared one Rust build directory,
+set by its image, between the copies and the tree. Cargo names a workspace member's outputs by its
+path within the workspace, the same in every copy, and the tree's own test run reused a test binary
+built from a plant: on cargo 1.99.1, with `CARGO_TARGET_DIR` shared, the tree's `cargo test` failed
+on the copy's planted assertion, and passed with a directory of its own. The other direction, a
+tree passing on a stale passing binary, is the one that ships. A mutation tool that copied the tree
+inherited the same setting.
 
 **Enforced by:** Engineer — the test command includes the rebuild; the enumeration test and the
 planted change for caches and filters.
