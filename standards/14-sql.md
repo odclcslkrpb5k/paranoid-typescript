@@ -152,3 +152,23 @@ application role's exact privileges, `TEMP` among them.
 
 **Prior art:** the Postgres manual, "Writing SECURITY DEFINER Functions Safely" (under
 `CREATE FUNCTION`).
+
+### SQ-10 (SHOULD) A loop that opens an exception block per row is bounded below 64 rows that write.
+A plpgsql `begin ... exception` block is a subtransaction, and each one that writes or locks a row
+takes a transaction id of its own. Past 64 of them in one top-level transaction, the backend's
+cache of them overflows, and every other session's snapshot must consult `pg_subtrans` until that
+transaction ends: a slowdown of the whole instance, caused by one function. Bound the rows such a
+loop takes, and say why where the bound is set; or check before acting rather than catching, so the
+loop needs no block.
+
+**Why:** the bulk change of one service caught a refusal per row; review found the loop unbounded.
+Checked on Postgres 18.6, where `pg_stat_get_backend_subxact` reports 64 blocks that each wrote one
+row as not overflowed and 65 as overflowed. The service caps a bulk change at 50 rows, in the
+function and in the request's schema.
+
+**Enforced by:** Administer, with the bound written where the request is parsed (BD-1) and in the
+function. Missing Engineer control: a test per bulk function that runs it at its bound and asserts
+`subxact_overflowed` is false.
+
+**Prior art:** GitLab's account of removing subtransactions from its Postgres workload (2021); the
+cache size is `PGPROC_MAX_CACHED_SUBXIDS` in Postgres's source.
