@@ -557,6 +557,13 @@ must make the referencing writes wait, as retiring it must. `for update` conflic
 and two transactions that take the same rows in opposite orders deadlock. Where `for update` is
 needed, every transaction takes the rows in one order.
 
+What a batch selects is a check too. A batch locks, at least `for share`, every row whose value
+decides what it selects, not only the rows it writes (`for no key update of i skip locked for share
+of pw`), and a writer that changes such a row locks it before reading anything it bases the change
+on. On Postgres 18.6, while a change to a mapping row was uncommitted, a batch that joined the
+mapping without locking it selected five items by the old mapping; with `for share of` the mapping,
+it waited for the change and selected none.
+
 **Why:** a service verified a password in its own code and then called the database to start a
 session. A password reset that committed during the check had revoked every session, yet left one
 alive: the one started from the stale check. Creating an API token raced the same reset the same
@@ -567,7 +574,9 @@ its archiving, but made every rename and reorder of the field's options wait beh
 A publish held a layout `for update` and then updated a pending move, while a background worker
 held that move and wrote issues whose foreign key referenced the layout: each waited on the other.
 On Postgres 18.6 that order deadlocked and the worker's writes were lost; with the layout held
-`for no key update`, both committed.
+`for no key update`, both committed. A batch that moved issues selected them through a mapping of
+types to versions without locking it, and an administrator's change to the mapping, validated
+against what the batch had not yet committed, could leave issues no job would place.
 
 **Enforced by:** Engineer — a sequential test can pin the re-check: call the acting step with a
 value the race has since replaced, and assert it refuses. For a check after a lock, a test opens a
