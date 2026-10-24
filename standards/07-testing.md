@@ -417,6 +417,28 @@ test failed before review.
 
 **Prior art:** performance budgets (Lighthouse budgets, size-limit, bundlesize); AD-2's ratchet.
 
+### TS-21 (SHOULD) The end-to-end suite fails a test in which a page it has shown is replaced by its loading state. (PROPOSED)
+A page that has shown its content keeps it while more loads or while it reads its data again. A
+fixture installed before the page's own scripts watches the document (a `MutationObserver` on
+`childList`) and fails the test when the page's heading, credited to the address where that
+heading appeared, is hidden or removed while a visible loading status shows at the same address.
+Moving to another address is not a swap, and a loading line that only adds content below what is
+kept does not trip it. Plant a swap, and a move to another address, to show which is caught.
+
+**Why:** a page replaced by its loading line and then restored is not a layout shift. Cumulative
+Layout Shift counts only elements present in both frames that moved, and a browser suite with a
+layout-shift gate passed every test on a tree with two such swaps. Once added, the check found
+both: a lazily loaded form under an already-shown list hid the whole page while its code arrived,
+and saving a filter replaced the filter's page while it was read again. An early version credited
+the previous page's heading to the next address during a move, and reported two swaps that were
+not there.
+
+**Enforced by:** Engineer — the fixture, mutation-tested by removing the fix for each swap it found
+(TS-5).
+
+**Prior art:** React's guidance on not hiding already-revealed content behind a fallback; Web
+Vitals' Cumulative Layout Shift, which this covers where CLS cannot.
+
 ## Open questions
 
 - **Test runner:** `node:test` or Vitest. Either needs TS-3's leak check added. The examples use
