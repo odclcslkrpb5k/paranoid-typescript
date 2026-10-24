@@ -107,13 +107,34 @@ is refused.
 ### DB-6 (SHOULD) A cursor clients resume from is issued in commit order.
 A sequence hands out values before the transaction commits, so two writers can commit in the
 opposite order to their ids, and a reader resuming from `id > cursor` never sees the one that
-committed late. Serialize the writes that take such ids, and state the assumption where they are
-written.
+committed late. Either serialize the writes that take such ids, and state the assumption where
+they are written, or issue the cursor in transaction order (PROPOSED):
+- each row records `pg_current_xact_id()` (a column default, or a trigger after the write);
+- a reader takes only rows whose transaction is below the horizon,
+  `xact < pg_snapshot_xmin(pg_current_snapshot())`, ordered by `(xact, id)`, and its cursor is
+  that pair.
 
-**Why:** the reader cannot tell a missed row from a row that does not exist.
+Every transaction below the horizon has ended, and a row not yet visible belongs to one at or above
+it, so nothing can appear behind a cursor already handed out. The horizon is the whole server's:
+one long transaction in any database, or a prepared transaction left behind, holds back every
+reader until it ends. Keep `max_prepared_transactions` at 0, its default, and bound transaction
+length (`idle_in_transaction_session_timeout`). A test that takes a starting cursor first waits
+until its own earlier writes are below the horizon, since other tests' transactions hold it too.
 
-**Enforced by:** Administer. Missing Engineer control: a test that commits two writers out of id
-order and asserts a resuming reader sees both.
+**Why:** the reader cannot tell a missed row from a row that does not exist. On Postgres 18.6, with
+writer A inserting first and committing three seconds after writer B, a read by id showed only B
+while A was open, so a reader resuming after B's id would never see A. The horizon read showed
+nothing until both had ended, then A and B in transaction order. A transaction prepared in another
+database held that read at no rows until it was committed. One project's feed test, which took its
+starting cursor without waiting, failed one run in three.
+
+**Enforced by:** Engineer, for the transaction-order cursor — a test on two connections in which
+the first writer takes its transaction id first and commits last: a reader between the two commits
+sees neither row, and after both sees both, in order. Administer for serialized writers. Missing
+Engineer control for them: the same test.
+
+**Prior art:** Postgres's snapshot information functions (`pg_current_snapshot`,
+`pg_snapshot_xmin`, `pg_current_xact_id`).
 
 ### DB-7 (SHOULD) A page cursor carries the values its list is ordered by, not only the last row's id. (PROPOSED)
 A cursor for a list ordered by a column that can change holds that column's value with the id,
