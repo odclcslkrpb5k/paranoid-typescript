@@ -202,3 +202,23 @@ still listed in `pg_prepared_statements` after its rollback, and `explain execut
 failed with "cannot use subquery in EXECUTE parameter".
 
 **Enforced by:** Engineer — the plan test, one case per query shape the generator can emit.
+
+### SQ-12 (SHOULD) A locking read that picks a row by its order reads again once the lock is held. (PROPOSED)
+`select ... order by version desc limit 1 for share` picks the newest row, then waits if another
+transaction holds it. Under READ COMMITTED, when that transaction commits, the statement re-checks
+only the row it waited on, which still qualifies, and returns it: a newer row the other transaction
+inserted is invisible to the statement's snapshot. Take the lock, then read the newest again in a
+statement of its own; if it changed, lock that row and read again, until the two agree. This locks
+one row however many exist.
+
+**Why:** an issue created while its layout was being published waited for the publish, then was
+filed under the version the publish had just replaced. On Postgres 18.6, with a publish holding
+version 1 `for update` and inserting version 2, the waiting locking read returned version 1 after
+the publish committed; a plain read afterwards returned 2.
+
+**Enforced by:** Engineer — a race test that opens a publish, starts the read so that it waits,
+commits the publish and asserts the new version was taken; its mutant returns without the second
+read (TS-5).
+
+**Prior art:** the Postgres manual's caution that `for update` with `order by` and `limit` under
+READ COMMITTED can return rows out of order, or fewer than the limit.
