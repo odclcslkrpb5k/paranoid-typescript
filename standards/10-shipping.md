@@ -304,8 +304,11 @@ were each met in a real script.
   setting, `" ${names[*]} "` joins with newlines, so `[[ $s == *" two "* ]]` is false for a name
   that is there (bash 5.3): a runner given two plants by name ran none and exited 0. Loop over the
   array, and fail when the selection matched nothing (TS-6).
-- Under `pipefail`, read a log to its end (`grep >/dev/null`, not `grep -q`): `grep -q` quits at
-  the first match, the writer upstream dies of SIGPIPE, and a real failure reads as something else.
+- Under `pipefail`, read a log to its end (`grep >/dev/null`, not `grep -q`), or write it to a file
+  and grep the file: `grep -q` quits at the first match, the writer upstream dies of SIGPIPE (141),
+  and a real failure reads as something else. On bash 5.3 every run failed with 60 KB after the
+  match and none with 1 KB, so a test with a short log passes: a mutation script reported real
+  kills on full-suite logs as inconclusive. Test the filter with a log of several hundred KB.
 - `unset CDPATH` as well, in case the script is ever run without `-p`: with it set, `cd` may print
   the directory it chose, and `$(cd "$d" && pwd)` returns two lines. Test by the relative path the
   ship uses, since `cd` ignores CDPATH for an absolute one.
