@@ -131,6 +131,12 @@ actor took `KEY SHARE` on a membership row the other session held `FOR UPDATE`. 
 administrator demoting themselves, on rows no other lock joins, needed the guard. Mutation found
 this; review had not.
 
+Such a test knows the second session is waiting by asking the server, never by sleeping. A row-lock
+wait appears in `pg_locks` as a `transactionid` lock whose `database` is null, so filtering by
+database counts none while one is in progress, and an unfiltered count includes other test files'
+databases in a shared cluster. Join to `pg_stat_activity` on `pid` and filter on its `datname`
+(Postgres 18.6).
+
 **Why:** a test written from a report restates the report's happy path. In one ship, three of six
 regression tests passed with their bug reinstated. Restoring from git once discarded eight
 uncommitted fixes; a basename-keyed copy restored one file over another. Two lines in one ship
