@@ -542,6 +542,12 @@ ordinary update of the row (a rename, a reorder) takes `for no key update`, whic
 archive that had taken `for update`, then found no row. Without that `for update`, the archive's
 update alone did not make the use wait, and the use read the option as live.
 
+A row that other rows reference is held `for no key update`, not `for update`, unless the change
+must make the referencing writes wait, as retiring it must. `for update` conflicts with the
+`for key share` every foreign key check takes, so it also stops writes that only reference the row,
+and two transactions that take the same rows in opposite orders deadlock. Where `for update` is
+needed, every transaction takes the rows in one order.
+
 **Why:** a service verified a password in its own code and then called the database to start a
 session. A password reset that committed during the check had revoked every session, yet left one
 alive: the one started from the stale check. Creating an API token raced the same reset the same
@@ -549,6 +555,10 @@ way. A function that changed a tenant's members checked that the caller was an a
 waited for the tenant's row; an administrator demoted or deactivated by the change it waited behind
 then acted anyway. Holding an option `for share` while an issue was written closed the race with
 its archiving, but made every rename and reorder of the field's options wait behind open writes.
+A publish held a layout `for update` and then updated a pending move, while a background worker
+held that move and wrote issues whose foreign key referenced the layout: each waited on the other.
+On Postgres 18.6 that order deadlocked and the worker's writes were lost; with the layout held
+`for no key update`, both committed.
 
 **Enforced by:** Engineer — a sequential test can pin the re-check: call the acting step with a
 value the race has since replaced, and assert it refuses. For a check after a lock, a test opens a
