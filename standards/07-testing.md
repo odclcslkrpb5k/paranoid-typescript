@@ -394,6 +394,23 @@ asserts that the next wait sees it, mutation-tested against the racing form (TS-
 **Prior art:** Tokio's "cancellation safety" of the operations `select!` may drop; Go's `select`,
 whose receive takes nothing when another case wins.
 
+### TS-20 (SHOULD) Each page entry's first load has a size budget, measured from the build, that only falls. (PROPOSED)
+A test reads the bundler's build manifest and, for each entry a user loads first, sums the
+compressed size of the entry chunk and every chunk it imports statically, followed through, but
+not the chunks it imports lazily. It fails when the sum passes the entry's budget, and fails too
+when the budget sits well above the sum (2% is enough), so that the budget is lowered as the
+code shrinks (AD-2). A budget is raised only in the commit that says why.
+
+**Why:** a change that added no code to the first load raised it from under its budget to 94,289
+bytes against 93,600. A lazily loaded page imported one module the shared chunk held and not
+another, and the bundler cut the chunk every entry loads in two: one more request and about 700
+bytes, none of it the page's own code. The diff showed nothing a reviewer could have seen, and the
+test failed before review.
+
+**Enforced by:** Engineer — the budget test and its file of budgets.
+
+**Prior art:** performance budgets (Lighthouse budgets, size-limit, bundlesize); AD-2's ratchet.
+
 ## Open questions
 
 - **Test runner:** `node:test` or Vitest. Either needs TS-3's leak check added. The examples use
