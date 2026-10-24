@@ -339,6 +339,12 @@ that fails when an exported parse function has no property test.
 The test asserts the value through the API as well as on screen, and its expected value comes from
 the server's rule, not from what the UI happened to show when the test was written.
 
+A test that saves waits for the server's answer (Playwright's `waitForResponse`, with its status),
+or for something only a success shows, and then reads the result back from the server before it
+asserts. A busy state proves only that the request was sent: a button disabled while a save was in
+flight let the test reload before the server answered, and the reload aborted the save. Asserting
+the editor's own state instead passed with a save that did nothing.
+
 **Why:** an end-to-end test demoted a project lead and expected that person's task count to stay at
 one. The server had always unassigned a demoted member's tasks, so the true count was zero. The
 test passed for months only because the table never refetched after the change and kept showing a
