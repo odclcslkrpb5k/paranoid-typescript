@@ -53,11 +53,20 @@ refusal is not a failure to retry: a 4xx is a verdict on the request, except the
 documents as transient (429 always; often 408, 423 and 425, and 409 in some APIs). Do not send a
 verdict again — but it is not done either; park it for a person and raise an alert.
 
+A worker that takes a batch never lets one item fail it. The batch selects only items it can
+process, a job with nothing processable left is passed over for the next pending one, and an item
+that cannot be processed holds only its own job open, until a later write supersedes it or a
+person acts.
+
 **Why:** a failure marked processed is a change the downstream system never receives; a failure
 retried at the head of a queue every cycle starves everything behind it. One service's malformed
-request cost five attempts and minutes of queue time each cycle before refusals were parked.
+request cost five attempts and minutes of queue time each cycle before refusals were parked. In a
+database-backed worker that takes the oldest pending job first, one issue that the job's map could
+not place raised and rolled back the batch on every loop, so every later job of every tenant
+stalled behind it.
 
-**Enforced by:** Engineer — tests of each path.
+**Enforced by:** Engineer — tests of each path, including one where an unprocessable item holds
+only its own job and later jobs go on; its mutant drops the batch's filter (TS-5).
 
 ### SV-6 (SHOULD) A service replacing another starts in shadow mode.
 It performs every read and records every write it would make, without making it, beside the system
