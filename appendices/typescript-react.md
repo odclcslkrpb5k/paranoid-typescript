@@ -16,8 +16,9 @@ frontend is about 380,000 lines of TypeScript, almost all of it agent-written, t
 strictness path (AD-4) from plain `strict`. It has not yet adopted this appendix: read every item
 as (PROPOSED). Each named setting was checked on 2026-10-21 against TypeScript 6.0.3, ESLint
 10.13.0, typescript-eslint 8.72.0, eslint-plugin-react-hooks 7.1.1, React 19.3.1, jsdom 30.1.3 and
-`@graphql-codegen/typescript` 6.1.2. Tool options change between versions; check each against the
-version you install.
+`@graphql-codegen/typescript` 6.1.2. The item under TS-21 comes from a second, smaller React
+application, and was checked on 2026-10-24 against React 19.3.1 and jsdom 30.1.3. Tool options
+change between versions; check each against the version you install.
 
 ## Compiler (chapter 02)
 
@@ -123,6 +124,13 @@ version you install.
   persistent cache version (`cache.version` in webpack) and every CI path filter.
 - **End-to-end tests read the server too (TS-17).** An assertion on a count, a status or a role
   shown on screen is paired with an API read of the same value.
+- **A lazy part of a shown page has a boundary of its own (TS-21).** A `lazy` component rendered
+  into a page already on screen suspends up to the nearest `<Suspense>`, often the page's, and
+  React hides the whole page behind that fallback until the code arrives. Give the lazy part its
+  own `<Suspense fallback={null}>`, placed where it only adds content below what is shown, or make
+  the update that reveals it a transition (`startTransition`), which keeps the shown content. With
+  React 19.3.1 under jsdom, a form loaded this way hid its page's heading behind the page's
+  "Loading…" with no inner boundary, and kept it shown with either control.
 
 ## What it does not replace
 
