@@ -306,9 +306,11 @@ were each met in a real script.
   array, and fail when the selection matched nothing (TS-6).
 - Under `pipefail`, read a log to its end (`grep >/dev/null`, not `grep -q`), or write it to a file
   and grep the file: `grep -q` quits at the first match, the writer upstream dies of SIGPIPE (141),
-  and a real failure reads as something else. On bash 5.3 every run failed with 60 KB after the
-  match and none with 1 KB, so a test with a short log passes: a mutation script reported real
-  kills on full-suite logs as inconclusive. Test the filter with a log of several hundred KB.
+  and a real failure reads as something else. It fails whenever the writer writes again after the
+  match: on bash 5.3, a single 300 KB write failed in 50 of 50 runs and a single 60 KB write in
+  none, while any separate write after the match failed every time, even an empty line. A test
+  with a short log in one write passes, and a mutation script then reported real kills on
+  full-suite logs as inconclusive. Test the filter with a log larger than the pipe buffer (64 KiB).
 - `unset CDPATH` as well, in case the script is ever run without `-p`: with it set, `cd` may print
   the directory it chose, and `$(cd "$d" && pwd)` returns two lines. Test by the relative path the
   ship uses, since `cd` ignores CDPATH for an absolute one.
