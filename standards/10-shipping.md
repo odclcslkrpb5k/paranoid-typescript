@@ -88,11 +88,21 @@ check a hook makes.
 Name the tests that ran, what was skipped and why, and which live systems were or were not
 exercised. A service that cannot run end to end off its server is never reported as working.
 
+A step that judges time (a long-task gate, a deadline, a benchmark) records the host's load beside
+its result (the 1-minute load average and the core count). A failure at a load above the core count
+is reported as contention, and the step runs again once the host is quiet; the ship waits for that
+run; a failure on a quiet host is the code's. The gate is not loosened, and its threshold is not
+raised to pass under load.
+
 **Why:** of the reporting rules, this is the one that most often separated a real result from a
-plausible one.
+plausible one. A browser gate that fails on any task over 50 ms failed three runs on tasks of 52
+to 66 ms, in tests the change never touched, while another project's mutation run held the load
+average near 28 on 12 cores. The same tree passed once the host was quiet. Read without the load,
+those failures would have been reported as the code's.
 
 **Enforced by:** Administer. Missing Engineer control: the ship tool prints the report's list of
-checks from the gate's record (SH-10), so it is not written from memory.
+checks from the gate's record (SH-10), so it is not written from memory, and a timed step records
+the load itself.
 
 ### SH-8 (MUST) The commit message carries the narration comments may not.
 Subject in the imperative; the body says why, what it enables and what it rules out.
