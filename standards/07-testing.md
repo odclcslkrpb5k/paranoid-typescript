@@ -124,6 +124,13 @@ A comment that says a line is needed for a behaviour is a claim, and is mutated 
 remove the line and run the test of that behaviour. A survivor means the line goes, or the comment
 does, and the test is strengthened if the behaviour is real.
 
+A concurrency test names why nothing but its guard makes the second session wait, and its mutant is
+the guard removed. Two administrators demoting each other was meant to test a lock on the tenant's
+row; with that lock removed the test still passed, because the audit row's foreign key to the
+actor took `KEY SHARE` on a membership row the other session held `FOR UPDATE`. Only each
+administrator demoting themselves, on rows no other lock joins, needed the guard. Mutation found
+this; review had not.
+
 **Why:** a test written from a report restates the report's happy path. In one ship, three of six
 regression tests passed with their bug reinstated. Restoring from git once discarded eight
 uncommitted fixes; a basename-keyed copy restored one file over another. Two lines in one ship
