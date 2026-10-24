@@ -604,3 +604,17 @@ the stream and asserts every other tab reads what it missed. Mutation-test both 
 
 **Prior art:** Kubernetes's list-then-watch, in which a list answers a `resourceVersion` and a
 watch resumes from it.
+
+### SV-35 (SHOULD) A page knows the release it was built from, and compares it with the release each answer names. (PROPOSED)
+The page's shell carries its release, written in when the build is published; the publish step
+refuses a shell with no place for it, and checks the release name against the pattern the
+configuration allows before writing it into HTML. The client compares that stamp with the release
+each answer names (a response header), and reloads or warns when they differ. It never takes the
+first answer's release as its own.
+
+**Why:** a page whose shell came from one release, and whose first answer came from the next, took
+the newer release as its own and ran the older code against it for as long as it stayed open;
+during a rolling deploy (DE-15) the same page could reload more than once.
+
+**Enforced by:** Engineer — the publish step's refusal, and an end-to-end test in which every
+answer, the first included, names a newer release; it killed a mutant that ignored the stamp.
