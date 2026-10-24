@@ -582,3 +582,25 @@ at both places (TS-5).
 
 **Prior art:** CWE-601, URL redirection to an untrusted site ("open redirect"); the WHATWG URL
 standard's treatment of backslashes and stripped tabs and newlines in special schemes.
+
+### SV-34 (SHOULD) A view that follows changes knows the feed position its data was read at, and the position each stream starts from. (PROPOSED)
+A page reads its data and then opens a stream of changes; a change committed between the two is in
+neither, and nothing says so. So every read a live view shows also answers the feed's head
+position, taken before the data or in the same snapshot, and a stream's first message (its `ready`)
+names the position it follows from. The view keeps the highest position it knows of, its data's or
+the last change it heard, and reads again only when a stream starts past it, so a first load does
+not read twice. Changes heard before the data arrives are kept and applied after it. A view whose
+refresh fails stays marked stale until one succeeds.
+
+**Why:** a project's first live page lost changes in that gap at first load, and again when another
+browser tab took over the stream. The message meant to make the other tabs read again had a shape
+the channel's own schema refused, so it never arrived, and a test passed only because a cursor
+shared on the server delivered the change some other way; a mutant showed the test proved nothing.
+Reading again on every connect closes the gap but doubles every first load.
+
+**Enforced by:** Engineer — an end-to-end test that commits a change while the page's data is on
+its way and asserts the page shows it once the data arrives, and one that closes the tab holding
+the stream and asserts every other tab reads what it missed. Mutation-test both (TS-5).
+
+**Prior art:** Kubernetes's list-then-watch, in which a list answers a `resourceVersion` and a
+watch resumes from it.
