@@ -95,7 +95,8 @@ tool:
   The reason is matched only against lines that report a failure: a line for a test that passed
   (`✔`, `✓`, TAP's `ok 3`) or one in a retrying runner's flaky list (a test that failed, then
   passed) names a test without that test having failed, so a reason naming one test is met while
-  another supplied the failure. A reason that matches any line (`.`) proves nothing and is refused;
+  another supplied the failure. A reason that matches any line proves nothing and is refused,
+  found by trying it on a line of one letter (`.`, `.*`, `^` and `x?` all match one);
 - keeps a whole copy of each mutated file, keyed on its full path, and restores from the copy,
   never from version control, which discards uncommitted work;
 - runs one mutant at a time, and nothing else reads the tree while a mutant is applied.
