@@ -92,11 +92,16 @@ tool:
   dependency could not be fetched, a signal killed it) as inconclusive, and so judges a planted bug
   by a reason its log must show, not only by the step that failed: judged by step, a network
   failure at a dependency-audit step would have proved both the licence and the advisory controls.
-  The reason is matched only against lines that report a failure: a line for a test that passed
-  (`✔`, `✓`, TAP's `ok 3`) or one in a retrying runner's flaky list (a test that failed, then
-  passed) names a test without that test having failed, so a reason naming one test is met while
-  another supplied the failure. A reason that matches any line proves nothing and is refused,
-  found by trying it on a line of one letter (`.`, `.*`, `^` and `x?` all match one);
+  The reason names the failing test, or text only its failure prints, and is matched only against
+  lines that report a failure. Lines that name a test without its having failed are not read: a
+  test that passed (`✔`, `✓`, TAP's `ok 3`), TAP's `# Subtest:` header before every test, and a
+  retrying runner's flaky list (a test that failed, then passed). Nor are lines every failure
+  prints: the runner's counts and headings (`ℹ fail 2`, `# fail 2`, `✖ failing tests:`) and its
+  boilerplate per failure (`failureType`, `ERR_TEST_FAILURE`, `1 subtest failed`, `AssertionError
+  [ERR_ASSERTION]` on Node 24.22). A failing subtest also fails its parent (`not ok 2 - group`),
+  so a reason naming a group is met by any test in it. A reason that matches such lines proves
+  nothing and is refused, found by trying it on a sample of them and on lines of one character
+  (each letter, digit and some marks: `.`, `.*`, `^`, `x?`, `e` and `[^x]` all match one);
 - keeps a whole copy of each mutated file, keyed on its full path, and restores from the copy,
   never from version control, which discards uncommitted work;
 - runs one mutant at a time, and nothing else reads the tree while a mutant is applied.
