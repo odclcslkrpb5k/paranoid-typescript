@@ -532,20 +532,34 @@ that row first, so under READ COMMITTED the re-check waits for it and then reads
 The same holds inside one call that waits for a lock. A check made before the wait is stale once
 the lock is held: authorize again after taking it, against what the lock now protects.
 
+Take the weakest lock that still conflicts with the state change, so the guard serializes only the
+race. Where a write uses a row that another operation may retire (an option being archived), the
+use takes `for key share`, which its foreign key takes anyway, and re-reads the state under it
+(`where archived_at is null`). Only the retiring change takes `for update` before it updates. An
+ordinary update of the row (a rename, a reorder) takes `for no key update`, which conflicts with
+`for share` but not with `for key share`. On Postgres 18.6, a rename waited behind an open
+`for share` and not behind an open `for key share`. A use under `for key share` waited for an
+archive that had taken `for update`, then found no row. Without that `for update`, the archive's
+update alone did not make the use wait, and the use read the option as live.
+
 **Why:** a service verified a password in its own code and then called the database to start a
 session. A password reset that committed during the check had revoked every session, yet left one
 alive: the one started from the stale check. Creating an API token raced the same reset the same
 way. A function that changed a tenant's members checked that the caller was an administrator, then
 waited for the tenant's row; an administrator demoted or deactivated by the change it waited behind
-then acted anyway.
+then acted anyway. Holding an option `for share` while an issue was written closed the race with
+its archiving, but made every rename and reorder of the field's options wait behind open writes.
 
 **Enforced by:** Engineer — a sequential test can pin the re-check: call the acting step with a
 value the race has since replaced, and assert it refuses. For a check after a lock, a test opens a
 change that demotes the caller and holds its lock, starts the call so that it waits, then commits
-the demotion and asserts the call changed nothing. Mutation-test the predicate and the second check
-(TS-5).
+the demotion and asserts the call changed nothing. For a retiring change, a test starts the archive
+and holds it, starts the use so that it waits, commits the archive and asserts the use is refused;
+one mutant drops the use's lock and another the archive's. Mutation-test the predicate and the
+second check (TS-5).
 
-**Prior art:** time-of-check to time-of-use (TOCTOU), CWE-367.
+**Prior art:** time-of-check to time-of-use (TOCTOU), CWE-367; the row-level lock conflict table
+in the Postgres manual.
 
 ### SV-32 (MUST) An answer that is not a success never carries a long-lived cache. (PROPOSED)
 A header set for a route lands on every answer the route gives, its errors included, unless the
