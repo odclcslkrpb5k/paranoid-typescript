@@ -529,13 +529,21 @@ was checked and holds the row `for share` with a predicate on it
 (`where password_hash = $checked`), refusing when no row matches; the operation it races updates
 that row first, so under READ COMMITTED the re-check waits for it and then reads the new value.
 
+The same holds inside one call that waits for a lock. A check made before the wait is stale once
+the lock is held: authorize again after taking it, against what the lock now protects.
+
 **Why:** a service verified a password in its own code and then called the database to start a
 session. A password reset that committed during the check had revoked every session, yet left one
 alive: the one started from the stale check. Creating an API token raced the same reset the same
-way.
+way. A function that changed a tenant's members checked that the caller was an administrator, then
+waited for the tenant's row; an administrator demoted or deactivated by the change it waited behind
+then acted anyway.
 
 **Enforced by:** Engineer — a sequential test can pin the re-check: call the acting step with a
-value the race has since replaced, and assert it refuses. Mutation-test the predicate (TS-5).
+value the race has since replaced, and assert it refuses. For a check after a lock, a test opens a
+change that demotes the caller and holds its lock, starts the call so that it waits, then commits
+the demotion and asserts the call changed nothing. Mutation-test the predicate and the second check
+(TS-5).
 
 **Prior art:** time-of-check to time-of-use (TOCTOU), CWE-367.
 
