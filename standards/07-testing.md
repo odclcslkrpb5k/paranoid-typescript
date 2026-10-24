@@ -345,6 +345,26 @@ check off (TS-6).
 
 **Prior art:** pytest's `filterwarnings = ["error"]`; compilers' warnings-as-errors.
 
+### TS-19 (SHOULD) A wait that gives up keeps what it was waiting for. (PROPOSED)
+A helper that races a read against a timeout (`Promise.race([reader.read(), timeout])`) leaves the
+read pending when the timeout wins. The next wait's read queues behind it, and whatever the orphan
+resolves with is lost. Keep the pending read with the stream's state and hand it to the next wait
+(`seen.waiting ??= reader.read()`, cleared once it resolves). The alternative is to cancel the
+read, which only works when nothing the stream sends afterwards matters. The same holds for any
+pending operation that consumes what it receives: a queue pop, a socket read, a lock request.
+
+**Why:** a test that waited for a live feed's first message, gave up, and then waited for the next
+timed out on data that had already arrived. It looked like an intermittent server bug: about one
+full run in two failed, at the previous commit as well. On Node 24.22, a stream sent one chunk
+after a 50 ms wait gave up; a second raced read then timed out, while a helper that kept the
+pending read got the chunk.
+
+**Enforced by:** Engineer — the helper, with a test that sends after one wait has given up and
+asserts that the next wait sees it, mutation-tested against the racing form (TS-5).
+
+**Prior art:** Tokio's "cancellation safety" of the operations `select!` may drop; Go's `select`,
+whose receive takes nothing when another case wins.
+
 ## Open questions
 
 - **Test runner:** `node:test` or Vitest. Either needs TS-3's leak check added. The examples use
