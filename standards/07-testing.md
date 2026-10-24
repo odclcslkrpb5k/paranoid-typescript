@@ -106,7 +106,13 @@ it as equivalent, naming the guard, rather than count it caught. A mutant must b
 test at all: a locale fix tested in a harness that already clears the locale, or a "connection
 refused" path aimed at a port the runtime refuses before connecting, proves nothing; nor does a
 test runner started from inside a test to prove a check fails, if it inherits the parent's
-`NODE_TEST_CONTEXT` and reports upward instead of failing.
+`NODE_TEST_CONTEXT` and reports upward instead of failing. Nor does a long task planted through
+the browser's debugging protocol: on Chromium 156 (Playwright 1.64.1), a 200 ms busy loop run by
+`page.evaluate` or `addInitScript` produced no `longtask` entry, while the same loop in a page
+script, or on a timer `page.evaluate` scheduled, produced one. Plant it in the page's own code.
+Performance entries are delivered after the frame that caused them, so a gate waits a frame and a
+task (`requestAnimationFrame`, then `setTimeout`) and reads `observer.takeRecords()` before it
+judges.
 
 A comment that says a line is needed for a behaviour is a claim, and is mutated like a guard:
 remove the line and run the test of that behaviour. A survivor means the line goes, or the comment
