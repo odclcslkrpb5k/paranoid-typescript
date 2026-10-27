@@ -538,8 +538,12 @@ was checked and holds the row `for share` with a predicate on it
 (`where password_hash = $checked`), refusing when no row matches; the operation it races updates
 that row first, so under READ COMMITTED the re-check waits for it and then reads the new value.
 
-The same holds inside one call that waits for a lock. A check made before the wait is stale once
-the lock is held: authorize again after taking it, against what the lock now protects.
+The same holds inside one call that waits for a lock. Every check made before the wait is stale
+once the lock is held: make each again after taking it, against what the lock now protects. That
+is who may act, and also that what is acted on still exists and still qualifies. In plpgsql,
+`select ... into` a row that has gone, and `update ... returning ... into` that matches none, leave
+the variable null without an error (Postgres 18.6); write `into strict`, which raises
+`no_data_found` (P0002), or test `found`, so the absence becomes a not-found answer, not nulls.
 
 Take the weakest lock that still conflicts with the state change, so the guard serializes only the
 race. Where a write uses a row that another operation may retire (an option being archived), the
@@ -569,14 +573,17 @@ session. A password reset that committed during the check had revoked every sess
 alive: the one started from the stale check. Creating an API token raced the same reset the same
 way. A function that changed a tenant's members checked that the caller was an administrator, then
 waited for the tenant's row; an administrator demoted or deactivated by the change it waited behind
-then acted anyway. Holding an option `for share` while an issue was written closed the race with
-its archiving, but made every rename and reorder of the field's options wait behind open writes.
-A publish held a layout `for update` and then updated a pending move, while a background worker
-held that move and wrote issues whose foreign key referenced the layout: each waited on the other.
-On Postgres 18.6 that order deadlocked and the worker's writes were lost; with the layout held
-`for no key update`, both committed. A batch that moved issues selected them through a mapping of
-types to versions without locking it, and an administrator's change to the mapping, validated
-against what the batch had not yet committed, could leave issues no job would place.
+then acted anyway. A later change to a board waited behind the board's deletion, re-checked only
+its caller, as this rule then said, and answered 200 with a board of nulls; given columns, it
+answered a wrong 422, or a 500 from a NOT NULL violation. Holding an option `for share` while an
+issue was written closed the race with its archiving, but made every rename and reorder of the
+field's options wait behind open writes. A publish held a layout `for update` and then updated a
+pending move, while a background worker held that move and wrote issues whose foreign key
+referenced the layout: each waited on the other. On Postgres 18.6 that order deadlocked and the
+worker's writes were lost; with the layout held `for no key update`, both committed. A batch that
+moved issues selected them through a mapping of types to versions without locking it, and an
+administrator's change to the mapping, validated against what the batch had not yet committed,
+could leave issues no job would place.
 
 **Enforced by:** Engineer — a sequential test can pin the re-check: call the acting step with a
 value the race has since replaced, and assert it refuses. For a check after a lock, a test opens a
