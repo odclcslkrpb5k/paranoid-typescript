@@ -675,3 +675,27 @@ during a rolling deploy (DE-15) the same page could reload more than once.
 
 **Enforced by:** Engineer — the publish step's refusal, and an end-to-end test in which every
 answer, the first included, names a newer release; it killed a mutant that ignored the stamp.
+
+### SV-36 (SHOULD) A page opened by a single-use link spends its code only on a person's action, and never needs its address again. (PROPOSED)
+The page reads the code from its address once and removes it (`history.replaceState`), so it is
+off the screen and out of the tab's history; from then on every state works from the code held in
+memory:
+- the code is spent when the person acts (a button), never on arrival, since mail security
+  scanners and link previews open a link before its recipient does;
+- a failed lookup, or a spend whose answer was lost, is retried with the code in memory;
+- a reload, which no longer has the code, says to open the link again, not that it was used;
+- a not-found after a try whose answer was lost (a network error, a timeout, a proxy's 5xx) says
+  that the earlier try may have worked, not that the link was used.
+
+**Why:** a review of pages that took the code out of their address found three states that misled:
+a reload said "link used", a failed read-only lookup could not be retried, and a retried spend
+whose first answer was lost got not-found and said "link used", though the first try may have
+worked.
+
+**Enforced by:** Engineer — end-to-end tests that follow the link from the delivered message
+(TS-22): one opens it in a separate browser context first, as a scanner would, and spends it
+afterwards; one reloads the page. Mutants that spend on arrival, and that report a missing code as
+spent, were killed (TS-5).
+
+**Prior art:** RFC 9110's safe methods (opening a link must not change state); the confirm step
+common in sign-in links for the same scanners.
