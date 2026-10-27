@@ -110,8 +110,13 @@ Judge a mutant by every test that exercises the guarded code, not only the file 
 mutant behind an earlier guard that already rules its case out is equivalent and survives: record
 it as equivalent, naming the guard, rather than count it caught. An equivalence holds only for the
 code it was judged against: a lock removed as redundant once its mutant survived had to come back
-when a later change added another lock, which made it necessary. A change to the code an
-equivalent mutant's record names runs that mutant again. A mutant must be able to fail the
+when a later change added another lock, which made it necessary. An equivalence names the files
+its guard lives in as well as the mutated one, since the guard is usually elsewhere (in the caller,
+or in another function's lock), and a change to any of them runs the mutant again. A survivor is
+answered only by a test that kills it or by a record of its equivalence; rewriting or removing the
+code it mutated answers nothing. A tool that can no longer apply a survivor keeps it due until
+someone records what became of that code, and that record lapses at the mutant's next verdict, so
+a survivor that returns and survives again is due again. A mutant must be able to fail the
 test at all: a locale fix tested in a harness that already clears the locale, or a "connection
 refused" path aimed at a port the runtime refuses before connecting, proves nothing; nor does a
 test runner started from inside a test to prove a check fails, if it inherits the parent's
