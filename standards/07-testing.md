@@ -447,6 +447,23 @@ not there.
 **Prior art:** React's guidance on not hiding already-revealed content behind a fallback; Web
 Vitals' Cumulative Layout Shift, which this covers where CLS cannot.
 
+### TS-22 (SHOULD) A link the system sends out of band is tested by following it from the message as delivered. (PROPOSED)
+For a link sent by mail, SMS or a webhook's callback, the end-to-end test reads the message from a
+test server that receives it (a local mail catcher with an API), takes the link out of the message
+as delivered, opens it in the browser and completes the flow. The test notes which messages existed
+before the send and takes only one that arrived after it. A test of the endpoint the page calls,
+and a test of the message's text, do not cover the link between them.
+
+**Why:** a service mailed invitation, password reset and address verification links. The API that
+spends each code was tested, and so was the mail text holding the link, but the web client had none
+of the pages: every link answered "No such page", the README said the pages existed, and the suite
+stayed green. The maintainer found it by following a reset link by hand.
+
+**Enforced by:** Engineer — the end-to-end test, with the worker that sends mail running against
+the test mail server.
+
+**Prior art:** the practice of a local mail catcher (MailHog, Mailpit) in end-to-end tests.
+
 ## Open questions
 
 - **Test runner:** `node:test` or Vitest. Either needs TS-3's leak check added. The examples use
