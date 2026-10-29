@@ -155,6 +155,13 @@ nothing else. Node's `--permission` governs the file system (`--allow-fs-read`,
 `--allow-*` also grants network access per host. Grant what the model allows, and test the
 production command's grants against the paths the compose file mounts (TS-7).
 
+Two grants are not what they look like (Node 26.13.0). `--allow-net` takes no value:
+`--allow-net=example.com` is accepted without complaint and a fetch to another host still
+succeeds, so a host list there restricts nothing; without the flag, even a test server on loopback
+cannot bind. `--allow-child-process` lets the process start programs the model does not govern: a
+Node child inherited the parent's grants and was refused a file the parent could not read, but
+`cat` read it. Grant child processes only where the service starts nothing but Node itself.
+
 **Why:** a compromised or confused process can then reach only what it was meant to. The grant
 lists drift from the mounts unless something compares them.
 
