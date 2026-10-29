@@ -97,6 +97,12 @@ written with their `.ts` extension, `allowImportingTsExtensions` with `noEmit`. 
 publishing, `rewriteRelativeImportExtensions` instead. A library that others import is usually
 emitted with declarations; a service is usually run directly.
 
+Running directly, Node reads no `tsconfig.json`: an import through `paths` type-checks and then
+fails with `ERR_MODULE_NOT_FOUND` (Node 26.12.1), so use relative imports or `package.json`
+`imports`. Node also refuses to strip types from a file under `node_modules`
+(`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`), so TypeScript vendored into the project lives
+outside it.
+
 **Why:** the extension and resolution settings for the two cases conflict, and a mix produces
 imports that type-check and then fail at run time.
 
