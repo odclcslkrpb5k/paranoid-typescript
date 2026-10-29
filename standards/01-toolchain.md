@@ -84,6 +84,13 @@ Set a minimum release age of days, not hours (npm's `min-release-age` and pnpm's
 `minimumReleaseAge` both exist; check the unit each uses). Setting names change between package
 manager versions: check the current documentation rather than copying from here.
 
+On npm 11.20, a committed `.npmrc` can hold all of it: `ignore-scripts=true`, `min-release-age=7`
+(in days), and `allow-git=none`, which refused a `github:` dependency with `EALLOWGIT`. A script a
+package needs is run by name, as a reviewed line in the project's setup, and the line must say
+`npm rebuild <package> --ignore-scripts=false`: under the committed `ignore-scripts=true`, plain
+`npm rebuild <package>` exited 0 without running the package's install script. A release age
+guards only versions newly resolved; it does nothing for what the lockfile already holds.
+
 **Why:** in the npm compromises of September 2025, popular packages were republished from phished
 maintainer accounts with malicious code, and a self-replicating worm spread through `postinstall`
 scripts. Both reached users through versions installed within hours of publication, before anyone
