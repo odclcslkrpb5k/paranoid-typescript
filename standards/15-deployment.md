@@ -164,6 +164,12 @@ Node child inherited the parent's grants and was refused a file the parent could
 program in its image can. Grant it only to a service that must start a child, and confine that
 service by its container and image instead.
 
+To run the tests under production's grants, note that `node --test` runs each file in a child
+process, so under `--permission` without `--allow-child-process` it fails with
+`ERR_ACCESS_DENIED`. `--test-isolation=none` runs the files in the test process, under the same
+flags as production; then keep every teardown assertion in `afterEach` (TS-3), since a failing
+top-level `after` hook in that mode exits 0.
+
 **Why:** a compromised or confused process can then reach only what it was meant to. The grant
 lists drift from the mounts unless something compares them.
 
