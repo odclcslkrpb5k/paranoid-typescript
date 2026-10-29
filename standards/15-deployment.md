@@ -160,7 +160,9 @@ Two grants are not what they look like (Node 26.13.0). `--allow-net` takes no va
 succeeds, so a host list there restricts nothing; without the flag, even a test server on loopback
 cannot bind. `--allow-child-process` lets the process start programs the model does not govern: a
 Node child inherited the parent's grants and was refused a file the parent could not read, but
-`cat` read it. Grant child processes only where the service starts nothing but Node itself.
+`cat` read it. The grant cannot name which programs, so a process holding it can reach anything a
+program in its image can. Grant it only to a service that must start a child, and confine that
+service by its container and image instead.
 
 **Why:** a compromised or confused process can then reach only what it was meant to. The grant
 lists drift from the mounts unless something compares them.
