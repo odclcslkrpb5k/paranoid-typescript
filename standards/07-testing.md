@@ -39,16 +39,19 @@ error (MariaDB 11.8).
 version the server reports with the production version pinned in the repository (TS-7).
 
 ### TS-3 (SHOULD) The suite fails a test that leaks a timer, a socket or a pool connection. (PROPOSED)
-An `afterEach` (or a global teardown) asserts that every database pool is drained, no timer or
-interval is pending and no server is listening. In Node, compare `process.getActiveResourcesInfo()`
-before and after each test, and prove the check can fail with fixtures that leak on purpose. Judge
-timers at once — a cleared timer is gone immediately, so a settling window only lets a short leak
-through — and give sockets and servers a short window, both to finish closing and to appear: a
-server is listed only once its `listen` completes. What it cannot see: Node reports only handles
-that keep the event loop alive, so an `unref()`'d timer or socket is invisible. What it sees that
-is not a leak: Node's `fetch` keeps connections open for reuse, and a test server in the same
-process holds its side of each, so a server under test closes its connections (`Connection: close`)
-rather than have the pool read as the test's leak.
+An `afterEach` asserts that every database pool is drained, no timer or interval is pending and no
+server is listening. Not an `after` hook: on Node 26.13.0, `node:test` counts no failed test when
+an `after` hook throws inside a `describe`, though it exits 1, and when a file's top-level `after`
+throws under `--test-isolation=none` it counts none and exits 0, printing the error only under
+"failing tests". A throw from `afterEach` or `before` failed every test in both modes. In Node,
+compare `process.getActiveResourcesInfo()` before and after each test, and prove the check can fail
+with fixtures that leak on purpose. Judge timers at once — a cleared timer is gone immediately, so
+a settling window only lets a short leak through — and give sockets and servers a short window,
+both to finish closing and to appear: a server is listed only once its `listen` completes. What it
+cannot see: Node reports only handles that keep the event loop alive, so an `unref()`'d timer or
+socket is invisible. What it sees that is not a leak: Node's `fetch` keeps connections open for
+reuse, and a test server in the same process holds its side of each, so a server under test closes
+its connections (`Connection: close`) rather than have the pool read as the test's leak.
 
 **Why:** a leaked handle is usually a missing `await` or a missing `finally`, and in production it
 is a slow resource leak or a hang on shutdown. Neither `node:test` nor Vitest fails an individual
