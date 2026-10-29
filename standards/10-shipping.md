@@ -173,7 +173,9 @@ gate script. Commit, push and release run from another, which on a second run re
 whichever step already happened. The suites and rehearsals a ship calls for (SH-13) run from a
 script too, after the gate and only once it has passed, never as a hand-typed chain. A finding
 and a crash never share an exit status: a checker that exits 1 for a finding cannot be told from a
-runtime that exits 1 on an uncaught exception, so findings get their own code.
+runtime that exits 1 on an uncaught exception, so findings get their own code. The exit status
+is necessary, not sufficient: a test runner can exit 0 having failed (TS-3's top-level `after`
+hook under `--test-isolation=none`), so the gate also refuses a run whose output lists a failure.
 
 **Why:** `lint | tail -1` showed "Checked 247 files" with the error above it, twice in one session;
 `gate | tail && git commit` shipped a failing test; a commit joined to a release with `;` was
