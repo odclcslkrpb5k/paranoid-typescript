@@ -5,6 +5,11 @@ promise is awaited, whether a union is handled in full, whether a value of type 
 code that trusts it. A linter without type information cannot see any of those, which is the main
 reason this standard's reference toolchain is typescript-eslint.
 
+A faster linter that runs typescript-eslint's type-aware rules is not yet a substitute where a
+project needs a typed rule of its own. On oxlint 1.90.0 with oxlint-tsgolint 7.0.2005,
+`--type-aware` reported `no-floating-promises`, but a JavaScript plugin rule found its parser
+services empty and no TypeScript program, so a rule such as LN-6's cannot be written there.
+
 ### LN-1 (MUST) Lint with typescript-eslint's `strictTypeChecked` configuration, with type information, over every file the compiler checks.
 Every rule is an error. There are no warnings. LN-2 to LN-7 then tighten some of the preset's rules
 and add rules it does not include; each says which.
