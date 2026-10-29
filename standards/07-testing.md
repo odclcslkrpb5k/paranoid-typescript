@@ -399,6 +399,12 @@ resolves with is lost. Keep the pending read with the stream's state and hand it
 read, which only works when nothing the stream sends afterwards matters. The same holds for any
 pending operation that consumes what it receives: a queue pop, a socket read, a lock request.
 
+Its mirror image is a wait for an event that has already happened. An event is not a state, so a
+listener added after it fired waits forever: on Node 26.13.0, `child.once("exit")` attached to a
+child that had already exited (`exitCode` was 0) was still waiting two seconds later. Check the
+state first (`exitCode`, `signalCode`, a stream's `closed`), and listen only when it is not yet
+settled.
+
 **Why:** a test that waited for a live feed's first message, gave up, and then waited for the next
 timed out on data that had already arrived. It looked like an intermittent server bug: about one
 full run in two failed, at the previous commit as well. On Node 24.22, a stream sent one chunk
