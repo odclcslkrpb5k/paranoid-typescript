@@ -115,7 +115,9 @@ it as equivalent, naming the guard, rather than count it caught. An equivalence 
 code it was judged against: a lock removed as redundant once its mutant survived had to come back
 when a later change added another lock, which made it necessary. An equivalence names the files
 its guard lives in as well as the mutated one, since the guard is usually elsewhere (in the caller,
-or in another function's lock), and a change to any of them runs the mutant again. A survivor is
+or in another function's lock), and a change to any of them runs the mutant again. A guard that
+rests on a dependency's behaviour (a driver that hands work to an idle connection before a busy
+one) names the lockfile or vendored file among them, so an upgrade runs it again. A survivor is
 answered only by a test that kills it or by a record of its equivalence; rewriting or removing the
 code it mutated answers nothing. A tool that can no longer apply a survivor keeps it due until
 someone records what became of that code, and that record lapses at the mutant's next verdict, so
