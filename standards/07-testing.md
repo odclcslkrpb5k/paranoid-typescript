@@ -171,6 +171,9 @@ without a mutation record for it.
 **Prior art:** mutation testing (PIT, Stryker), applied selectively, to the tests that matter most,
 rather than across the whole codebase.
 
+**Example:** [`tools/ship/mutate`](../examples/tools/ship/mutate),
+[`tools/ship/mutants`](../examples/tools/ship/mutants).
+
 ### TS-6 (SHOULD) A check that selects its own subject asserts which subject it selected.
 Name the tables, routes or files it found and compare them with the set it claims to cover, in both
 directions. Make an ambiguous match fail (assert exactly one match, never `.find`). A floor on the

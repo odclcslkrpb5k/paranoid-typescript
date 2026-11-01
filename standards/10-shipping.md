@@ -166,6 +166,9 @@ only memory said it no longer counted.
 an edit made and undone during a run is not seen. The next rung, if that ever lets an unchecked
 tree through, is Eliminate: run the final checks against a snapshot the agent cannot edit.
 
+**Example:** [`tools/ship/commit-and-push`](../examples/tools/ship/commit-and-push),
+[`tools/ship/tree-hash`](../examples/tools/ship/tree-hash).
+
 ### SH-11 (SHOULD) Judge every check by its exit status, and run commit, push and release as one script that stops at the first failure.
 Never read a verdict from filtered output: `check | tail -1` replaces the status with `tail`'s.
 Lint, formatting, type checking, the hook's checks and the host-only tests (TS-10) run from one
@@ -189,6 +192,9 @@ timed steps, chained by hand with `;`, ran a 22-minute rehearsal after the gate 
 failed.
 
 **Enforced by:** Engineer — the scripts.
+
+**Example:** [`tools/ship/steps`](../examples/tools/ship/steps),
+[`tools/ship/timed`](../examples/tools/ship/timed).
 
 ### SH-12 (MUST) Scan what is pushed for secrets and sensitive data.
 Patterns for shaped secrets (cloud keys, private-key bodies, passwords in URLs, the project's own
@@ -256,6 +262,8 @@ git stored that line.
 **Enforced by:** Engineer — the scanner, in the hook and the gate. Patterns do not find personal
 data; that stays with review (DP-1).
 
+**Example:** [`tools/ship/secrets_check.sh`](../examples/tools/ship/secrets_check.sh).
+
 ### SH-13 (SHOULD) The steps a ship needs are read from the paths it changes, as data.
 Which suites a change calls for — end-to-end tests for anything a screen depends on, a deploy
 rehearsal for a change to deploy files — is kept as data: a pattern over changed paths, the step's
@@ -272,6 +280,9 @@ encoding failed open four ways — an invalid regex counted as no match, a last 
 newline was skipped, the file could edit away its own rule, a rename hid the old path.
 
 **Enforced by:** Engineer — the ship tool.
+
+**Example:** [`tools/ship/required`](../examples/tools/ship/required),
+[`tools/ship/required-steps`](../examples/tools/ship/required-steps).
 
 ### SH-15 (MUST) Every file a ship adds is one the change meant to add. (PROPOSED)
 A fugitive file is one that reached the repository by accident: test output, an agent's planning
@@ -301,6 +312,9 @@ already there, and rotate anything they exposed, since history keeps them.
 **Prior art:** fugitive emissions in industrial hygiene, releases that escape the designed stack or
 vent, controlled by enclosing the source rather than cleaning up after it; allow lists over deny
 lists.
+
+**Example:** [`tools/ship/allowed-paths`](../examples/tools/ship/allowed-paths), read by
+[`tools/ship/commit-and-push`](../examples/tools/ship/commit-and-push).
 
 ## Shell scripts
 
@@ -349,3 +363,6 @@ were each met in a real script.
 what a command means. A ship script run that way can report a check as passed that never ran.
 
 **Enforced by:** Engineer — each item has a test in the tool's suite, mutation-tested (TS-5).
+
+**Example:** [`tools/ship/`](../examples/tools/ship/), and its test in
+[`test/ship/hardening.test.ts`](../examples/test/ship/hardening.test.ts).

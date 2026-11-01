@@ -20,6 +20,8 @@ do.
 and in the check command (TC-5). Administer for the rest (CD-2). No practical Engineer control for
 it: telling a durable trade-off from history needs the comment read against the code.
 
+**Example:** [`tools/ship/check-comments.ts`](../examples/tools/ship/check-comments.ts).
+
 ### CD-2 (MUST) Every comment passes the survival test.
 Would it still be true and useful to someone reading the file in a year, who never saw the diff? If
 it only makes sense beside the diff, it belongs in the commit body. Default to short comments that
