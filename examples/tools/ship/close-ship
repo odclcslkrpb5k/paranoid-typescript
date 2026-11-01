@@ -1,0 +1,36 @@
+#!/usr/bin/env -S bash -p
+# -p: this script takes no functions, BASH_ENV or CDPATH from the environment (its children may).
+# Records the ship's SH-9 decision - what this ship could teach the Paranoid TypeScript standard -
+# in its ledger, which `timed --report` reads: the report is refused until the latest ship has one.
+#
+# Usage: close-ship --nothing                 nothing that shipped belongs in the standard
+#        close-ship --sent "<the candidates>"  sent to the standard's maintainers
+set -eEuo pipefail
+unset CDPATH
+export LC_ALL=C
+trap 'echo "close-ship: line $LINENO failed" >&2; exit 2' ERR
+
+usage='usage: close-ship --nothing | --sent "<the candidates>"'
+case "${1:-}" in
+  --nothing) [ $# -eq 1 ] || { echo "$usage" >&2; exit 2; }; decision="nothing for the standard" ;;
+  --sent)
+    { [ $# -eq 2 ] && [ -n "${2//[[:space:]]/}" ]; } || { echo "$usage" >&2; exit 2; }
+    # One row of five tab-separated fields whatever the text holds, so it cannot pass for a step's.
+    decision="sent to the standard: ${2//$'\t'/ }"
+    decision="${decision//$'\n'/ }"
+    decision="${decision//$'\r'/ }"
+    ;;
+  *) echo "$usage" >&2; exit 2 ;;
+esac
+
+ledger="${SHIP_TIMINGS:-$(git rev-parse --absolute-git-dir)/ship-timings}.ledger"
+# Every commit shipped since the last decision: two ships with no `timed --start` between them are
+# decided together, and the record names both. A row with no commit still counts, as it does for
+# timed, or a damaged row would hold the report for good.
+commit="$(awk -F'\t' '
+  $1 == "standard" { open = "" }
+  $1 == "shipped" { open = open (open == "" ? "" : " ") ($5 == "" ? "(unnamed)" : $5) }
+  END { print open }' "$ledger" 2>/dev/null || true)"
+[ -n "$commit" ] || { echo "close-ship: nothing has shipped since the last decision" >&2; exit 2; }
+printf '%s\t0\t-\t-\t%s\n' "standard" "$decision ($commit)" >>"$ledger"
+echo "close-ship: SH-9 for $commit: $decision"

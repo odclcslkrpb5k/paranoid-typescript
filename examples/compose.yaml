@@ -16,6 +16,9 @@ services:
     <<: *image
     # No network at all, so no test can reach a live system (TS-1).
     network_mode: none
+    # The ship tool's tests run its TypeScript checks on this node: the container has no Docker.
+    environment:
+      SHIP_NODE: node
     command: ["npm", "run", "check"]
 
   fix:

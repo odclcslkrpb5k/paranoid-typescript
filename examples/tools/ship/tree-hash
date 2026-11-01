@@ -1,0 +1,32 @@
+#!/usr/bin/env -S bash -p
+# -p: this script takes no functions, BASH_ENV or CDPATH from the environment (its children may).
+# Prints the git tree id of exactly what `git add -A` would commit: tracked edits, deletions and
+# untracked files, ignored ones excluded. Computed in a scratch index, so the real one is untouched.
+#
+# Two runs print the same id only for the same content, so it pins what a test run saw to what a
+# commit holds. Before the first commit (an unborn HEAD) the scratch index starts empty.
+set -eEuo pipefail
+unset CDPATH
+export LC_ALL=C
+trap 'echo "tree-hash: line $LINENO failed" >&2; exit 2' ERR
+
+# Under the git directory rather than /tmp, so no other user can pre-create its lock.
+scratch="$(mktemp -u -p "$(git rev-parse --absolute-git-dir)" tree-index.XXXXXX)"
+trap 'rm -f "$scratch" "$scratch.lock"' EXIT
+# Seeded from HEAD's tree, which carries no stat data, so every file's content is read. A copy of
+# the real index would carry stat data that git trusts unless a file is newer than the index - and
+# the copy is newer than everything - so a same-size edit made in the same second would hash as the
+# old content.
+if git rev-parse --verify --quiet 'HEAD^{commit}' >/dev/null; then
+  GIT_INDEX_FILE="$scratch" git read-tree HEAD
+else
+  # Unborn: HEAD names a branch that does not exist yet. Anything else is a broken repository.
+  branch="$(git symbolic-ref --quiet HEAD)" || { echo "tree-hash: HEAD cannot be read" >&2; exit 2; }
+  if git show-ref --verify --quiet "$branch"; then
+    echo "tree-hash: $branch exists but is not a commit" >&2
+    exit 2
+  fi
+  GIT_INDEX_FILE="$scratch" git read-tree --empty
+fi
+GIT_INDEX_FILE="$scratch" git add -A
+GIT_INDEX_FILE="$scratch" git write-tree

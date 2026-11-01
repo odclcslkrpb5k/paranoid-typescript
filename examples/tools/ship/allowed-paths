@@ -1,0 +1,26 @@
+# The paths a ship may add (SH-15): one extended regex per line, starting with ^, holding no
+# space, matched byte-wise against each path the ship adds since origin's main.
+# tools/ship/commit-and-push reads this list from the tree it ships and refuses an added path that
+# no line admits, or a line that is not a valid pattern. A new kind of file is an edit here, in the
+# same change, where review sees it.
+#
+# Files at the root.
+^\.gitignore$
+^\.node-version$
+^\.npmrc$
+^\.prettierignore$
+^\.prettierrc\.json$
+^Dockerfile$
+^compose\.yaml$
+^LICENSE$
+^README\.md$
+^eslint\.config\.js$
+^package\.json$
+^package-lock\.json$
+^tsconfig\.json$
+# Directories.
+^src/
+^test/
+^tools/
+^lint/
+^\.githooks/

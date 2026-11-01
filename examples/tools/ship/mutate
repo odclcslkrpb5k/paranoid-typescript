@@ -1,0 +1,317 @@
+#!/usr/bin/env -S bash -p
+# -p: this script takes no functions, BASH_ENV or CDPATH from the environment (its children may).
+# Applies one mutant to a file, runs a command, and puts the file back (TS-5); the README says
+# how to use it. Each verdict is recorded with the whole mutant under .git/ship-mutants/<id>/, the
+# id printed after it (`recorded as <id>`), for `mutants` to list and run again.
+#
+# Usage: mutate <file> <find> <replace> <reason> -- <command...>
+# Exit:  0 killed, 1 survived, 2 inconclusive (not applied, the file or its mutant does not compile,
+#        the compile check fails for a reason that is not the code, the command cannot run, fails
+#        without the mutant, dies of a signal with it, or fails with it while no test fails or for
+#        no reason its log names, or the file not restored - the message says where its original is)
+#
+# A mutant is killed only when the test runner reports a failing test in the mutant's run: a line
+# `ℹ fail N` or `ℹ cancelled N` (node:test's spec reporter; a test cut off by its timeout is
+# cancelled), the same after `#` (TAP), or Playwright's `N failed`, with N above 0. A command that
+# also formats or lints fails for a mutant that only lengthens a line or trips a rule, and that is
+# no verdict on the tests (TS-5). So the command must print one of those reporters' summaries. And
+# the mutant's log must match <reason>, an extended regular expression naming the failure the
+# mutant should cause (the failing test's name, an assertion's message): a test failing for
+# another cause, a flaky one or a network error, proves nothing about this mutant (TS-5). A line
+# that reports a test passing (`✔`, `✓`, TAP's `ok`) is not read for it, nor one in Playwright's
+# list of tests that failed and then passed on a retry: a reason naming a test is met only where
+# that test fails. Nor is a runner's summary, its counts and headings, nor TAP's `# Subtest:` line,
+# printed before every test. A reason any failing log meets is refused: one a line of one
+# character meets (`.`, `e`, `[^x]`), or what node:test prints for every failure.
+set -eEuo pipefail
+unset CDPATH
+export LC_ALL=C
+
+usage="usage: mutate <file> <find> <replace> <reason> -- <command...>"
+{ [ $# -ge 6 ] && [ "$5" = -- ]; } || { echo "$usage" >&2; exit 2; }
+file="$1" find="$2" replace="$3" reason="$4"
+shift 5
+command=("$@")
+here="$(cd -P "$(dirname "$0")" && pwd -P)"
+die() { echo "mutate: $*" >&2; exit 2; }
+# Any command failing unexpectedly is inconclusive, and the EXIT trap still restores the file.
+trap 'failed=$?; trap - ERR; die "line $LINENO failed unexpectedly (exit $failed)"' ERR
+[ -f "$file" ] || die "no file $file"
+{ [ -r "$file" ] && [ -w "$file" ]; } || die "cannot read and write $file"
+[ -n "$find" ] || die "the text to change is empty"
+[ -n "$reason" ] || die "the reason the mutant's log must show is empty"
+# grep exits 2 for a pattern it cannot read, 1 for no match.
+valid=0
+grep -E -q -e "$reason" </dev/null || valid=$?
+[ "$valid" -ne 2 ] || die "the reason is not an extended regular expression: $reason"
+# A reason that a line of one character meets would be met by any log: it names no failure (TS-5).
+# The standard's probe is a single letter; every letter, digit and a few marks are tried, so
+# `e` or `[^x]` is refused as `.` is. So is one met by what node:test prints for any failure. The
+# probes are a sample, not every reason that names no failure.
+probes="$(printf '%s\n' {a..z} {A..Z} {0..9} ' ' . : - _ \
+  "  failureType: 'testCodeFailure'" "  code: 'ERR_TEST_FAILURE'" "1 subtest failed" \
+  "  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:")"
+if grep -E -q -e "$reason" <<<"$probes"; then
+  die "any failing log meets the reason, so it names no failure: $reason"
+fi
+# Bash cannot hold a NUL in a variable, so a binary file would be tested in a corrupted form.
+tr -d '\000' <"$file" | cmp -s - "$file" || die "$file holds NUL bytes, which this cannot carry"
+
+git_dir="$(git rev-parse --absolute-git-dir 2>/dev/null)" || die "not in a git repository"
+state="$git_dir/ship-mutate"
+mkdir -p "$state" || die "cannot create $state"
+key="$(realpath "$file" | sha256sum | cut -c1-16)"
+original="$state/$key.orig" output="$state/$key.log" check_log="$state/$key.check"
+named_by="$state/$key.path"
+# One mutant at a time in a repository, not per file: the type check and the tests read every file,
+# so another run's mutant would be judged as part of this one; and none while a ship step (timed,
+# which holds this lock shared) is reading the tree.
+exec 8>>"$state/lock" || die "cannot open the lock in $state"
+flock -n 8 || die "another mutate or a ship step is running in this repository"
+# A run that never finished left its copy - of this file or any other, whose mutant the command
+# would read: harmless if that file is intact, otherwise the only original.
+for kept in "$state"/*.orig; do
+  [ -e "$kept" ] || continue
+  # Read whole: a command substitution would drop a trailing line break from the name.
+  whose="$(cat "${kept%.orig}.path" 2>/dev/null; printf x)" || whose=x
+  whose="${whose%x}"
+  whose="${whose%$'\n'}"
+  [ "$kept" != "$original" ] || whose="$file"
+  [ -n "$whose" ] || die "a run that never finished left an original at $kept without naming its" \
+    "file; compare it with the file it came from, put it back if that file is not intact, and" \
+    "remove it"
+  # Hashes that could not be taken are not a match.
+  kept_hash="$(sha256sum <"$kept" 2>/dev/null)" || kept_hash=""
+  whose_hash="$(sha256sum <"$whose" 2>/dev/null)" || whose_hash=""
+  if [ -n "$kept_hash" ] && [ "$kept_hash" = "$whose_hash" ]; then
+    rm -f "$kept" "${kept%.orig}.path"
+  else
+    die "a run that never finished left $whose's original at $kept; put it back (cp -p it over" \
+      "that file) and remove it"
+  fi
+done
+
+# Read whole, trailing newlines kept: a command substitution would strip them.
+content="$(cat "$file"; printf x)"
+content="${content%x}"
+[[ "$content" == *"$find"* ]] || die "$file does not contain the text to change"
+
+# A mutant that does not compile fails any test that loads it, which says nothing about the tests.
+# TypeScript is checked with tsc over tsconfig.json's whole program, so a mutant that breaks only an
+# importer is caught too; the file must be part of that program, or a mutant that does not compile
+# could not be told from a kill. JavaScript is checked for syntax with `node --check`, shell with
+# `bash -n`. Files of other kinds (SQL, JSON) have no check, so a mutant that breaks one is judged
+# by the command alone. node runs through run-node: in the project's image, or SHIP_NODE.
+kind=
+case "$file" in
+  *.ts | *.mts | *.cts) kind=ts ;;
+  *.js | *.mjs | *.cjs) kind=js ;;
+  *.sh | *.bash) kind=shell ;;
+  *) if head -n 1 "$file" | grep -E '^#!.*[/ ](ba)?sh([[:space:]]|$)' >/dev/null; then kind=shell; fi ;;
+esac
+top=""
+relative=""
+if [ "$kind" = ts ] || [ "$kind" = js ]; then
+  top="$(cd -P "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null && pwd -P)" ||
+    die "the top of the work tree could not be found"
+  absolute="$(realpath "$file")"
+  [[ "$absolute" == "$top"/* ]] || die "$file is not in this work tree"
+  relative="${absolute#"$top"/}"
+  if [ "$kind" = ts ]; then
+    [ -f "$top/tsconfig.json" ] || die "there is no tsconfig.json to type-check $file with"
+  fi
+fi
+
+before="$(sha256sum <"$file")"
+# The path beside the copy, so whoever finds a copy left behind knows whose original it is.
+# Copied under another name first, so an original that exists is always a whole one.
+{ realpath "$file" >"$named_by" && cp -p "$file" "$original.part" &&
+  [ "$(sha256sum <"$original.part")" = "$before" ] && mv -f "$original.part" "$original"; } ||
+  {
+    rm -f "$original.part" "$original" "$named_by"
+    die "could not keep a copy of $file; nothing was changed"
+  }
+restore() {
+  { { [ "$(sha256sum <"$file" 2>/dev/null)" = "$before" ] || cp -p "$original" "$file"; } &&
+    [ "$(sha256sum <"$file" 2>/dev/null)" = "$before" ]; } ||
+    { echo "mutate: *** $file was not restored; its original is at $original" >&2; exit 2; }
+  rm -f "$original" "$named_by"
+}
+trap restore EXIT
+# A signal becomes an exit, so the restore runs; bash takes it once the running command returns.
+trap 'exit 130' INT TERM
+
+# Without the lock's descriptor: a process the command leaves running must not hold the lock.
+run() {
+  "$@" 8>&- >>"$output" 2>&1 </dev/null
+}
+# What a check prints when the code is what it refused: a type error at a place in a file, or a
+# syntax error. Any other failure - a container that would not start, a missing tool, a signal - is
+# no verdict on the file.
+tsc_errors='^.+\([0-9]+,[0-9]+\): error TS[0-9]+: '
+node_errors='^SyntaxError'
+# Runs one check, naming it in $failed: 0 passed, 1 the code failed it, 2 anything else.
+check() {
+  local name="$1" errors="$2" status=0
+  shift 2
+  # From the top, which run-node mounts; bash -n is handed an absolute path and needs no top.
+  ( if [ -n "$top" ]; then cd "$top"; fi && NO_COLOR=1 "$@" ) 8>&- >"$check_log" 2>&1 </dev/null ||
+    status=$?
+  cat "$check_log" >>"$output"
+  [ "$status" -eq 0 ] && return 0
+  failed="$name, exit $status"
+  # 124 is timeout's: a check cut short judged nothing, whatever it printed first.
+  if [ "$status" -lt 126 ] && [ "$status" -ne 124 ] && grep -E -- "$errors" "$check_log" >/dev/null; then
+    return 1
+  fi
+  return 2
+}
+compiles() {
+  local status=0
+  failed=
+  case "$kind" in
+    ts)
+      check tsc "$tsc_errors" "$here/run-node" --deps node_modules/typescript/bin/tsc --noEmit \
+        --pretty false --listFiles -p tsconfig.json || status=$?
+      # A program without the file never checked it. Paths are as node sees them: /repo in the
+      # image, the work tree's own with SHIP_NODE.
+      if [ "$status" -eq 0 ]; then
+        local seen="/repo"
+        [ -z "${SHIP_NODE:-}" ] || seen="$top"
+        if ! grep -xF -- "$seen/$relative" "$check_log" >/dev/null; then
+          failed="tsc never read $relative"
+          status=3
+        fi
+      fi
+      ;;
+    js) check "node --check" "$node_errors" "$here/run-node" --check "$relative" || status=$? ;;
+    # bash -n only parses, so any failure short of not running is the code's: its messages vary
+    # (an unmatched quote is "unexpected EOF") and are translated.
+    shell) check "bash -n" "" bash -n "$(realpath "$file")" || status=$? ;;
+  esac
+  return "$status"
+}
+# Keeps the whole mutant under .git/ship-mutants/<id>/, where `mutants` lists it and runs it again:
+# where it was run, the file as named there, the text found and its replacement, the reason, the
+# command (NUL-separated), and one line per verdict with the hash of the file it judged. The id is
+# the file's real path, the find and the replacement, so the same mutant run again keeps one record.
+# Each field is written aside and moved into place, so a run cut short leaves it whole, and the
+# verdict comes last: a record without one lists as not whole. A new verdict ends any retirement,
+# which answered the run before it.
+record() {
+  local id dir real
+  real="$(realpath "$file")" &&
+    id="$(printf '%s\0%s\0%s' "$real" "$find" "$replace" | sha256sum | cut -c1-16)" &&
+    [[ "$id" =~ ^[0-9a-f]{16}$ ]] || return 1
+  dir="$git_dir/ship-mutants/$id"
+  put() { printf "$2" "${@:3}" >"$dir/$1.part" && mv -f "$dir/$1.part" "$dir/$1"; }
+  mkdir -p "$dir" && put cwd '%s' "$PWD" && put file '%s' "$file" && put find '%s' "$find" &&
+    put replace '%s' "$replace" && put reason '%s' "$reason" &&
+    put command '%s\0' "${command[@]}" && rm -f "$dir/retired" &&
+    printf '%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "${before%% *}" >>"$dir/verdicts" &&
+    printf '%s' "$id"
+}
+# Logs a verdict in both places, and sets `recorded` to the line saying where; a log that cannot be
+# written is said, never fatal.
+logged() {
+  local id
+  printf '%s\t%s\t%s\n' "$1" "$file" "$summary" >>"$git_dir/ship-mutations" ||
+    echo "mutate: the outcome could not be logged" >&2
+  if id="$(record "$1")"; then
+    recorded="mutate: recorded as $id; tools/ship/mutants lists it"
+  else
+    recorded="mutate: the mutant could not be recorded"
+  fi
+}
+recorded=
+# The first line with text, by sed's own `q`: `head` closing the pipe early would kill sed with
+# SIGPIPE, which pipefail reports as a failure.
+summary="$(sed -n '/[^[:space:]]/{p;q;}' <<<"$find" | cut -c1-60)"
+: >"$output"
+compiled=0
+compiles || compiled=$?
+case "$compiled" in
+  0) ;;
+  1) die "$file does not compile without the mutant ($failed), so it cannot be judged;" \
+    "see $output" ;;
+  3) die "$file is not part of tsconfig.json's program ($failed), so a mutant that does not" \
+    "compile could not be told from a kill" ;;
+  *) die "the compile check failed for a reason that is not the code ($failed); see $output" ;;
+esac
+baseline=0
+run "$@" || baseline=$?
+[ "$baseline" -eq 0 ] || die "the command fails without the mutant (exit $baseline); see $output"
+
+mutant="${content/"$find"/"$replace"}"
+{ printf '%s' "$mutant" >"$file" &&
+  [ "$(sha256sum <"$file")" = "$(printf '%s' "$mutant" | sha256sum)" ]; } ||
+  die "could not write the mutant into $file"
+
+compiled=0
+compiles || compiled=$?
+if [ "$compiled" -ne 0 ]; then
+  trap - EXIT
+  restore
+  [ "$compiled" -eq 1 ] ||
+    die "the compile check failed with the mutant for a reason that is not the code ($failed);" \
+      "see $output"
+  logged uncompiled
+  echo "$recorded" >&2
+  die "the mutant does not compile ($failed), so it judges no test; see $output"
+fi
+# Where the mutant's run starts in the log, so only its own count of failing tests is read.
+mark="$(wc -c <"$output")"
+status=0
+run "$@" || status=$?
+# Restored before the verdict is recorded, so the record never contradicts the exit status.
+trap - EXIT
+restore
+case "$status" in
+  0) outcome=SURVIVED ;;
+  126 | 127) die "the command could not run with the mutant (exit $status); see $output" ;;
+  12[89] | 1[3-9][0-9] | 2[0-9][0-9]) die "the command died of a signal (exit $status); see $output" ;;
+  *)
+    # Colour codes and carriage returns removed, then the runners' counts of failing tests summed.
+    tail -c +"$((mark + 1))" "$output" | sed -E 's/\x1b\[[0-9;]*m//g; s/\r$//' >"$output.mutant"
+    failing="$(sed -n -E 's/^(ℹ|#) (fail|cancelled) ([0-9]+)$/\3/p; s/^ +([0-9]+) failed$/\1/p' \
+      "$output.mutant" | awk '{ n += $1 } END { print n + 0 }')"
+    [ "$failing" -gt 0 ] ||
+      die "the command failed with the mutant (exit $status) but no test failed, so it judged no" \
+        "test: a formatter or linter may have refused the mutant; see $output"
+    # The lines that may show the reason: not a runner's summary (its counts, which every failing
+    # run prints, so `fail` would meet any), not one reporting a test that passed, nor one listing
+    # a test Playwright counts as flaky (it failed, then passed on a retry). Nor a group's own
+    # failure, which any failing test inside it causes: node's spec reporter heads a group with
+    # `▶ name` and closes it with `✖ name` at the same indent, and TAP marks the group's `not ok`
+    # with `failureType: 'subtestsFailed'` in the block below it. So the log is read twice: first
+    # for those `not ok` lines, then to keep the rest. Read from a file, not a pipe: a matcher that
+    # stops at its first match would leave the writer killed by SIGPIPE.
+    awk 'FNR == NR {
+        if ($0 ~ /^ *not ok [0-9]+ - /) { last = FNR }
+        else if ($0 ~ /^ *failureType: .subtestsFailed.$/ && last > 0) { group[last] = 1 }
+        else if ($0 ~ /^ *\.\.\.$/) { last = 0 }
+        next
+      }
+      FNR in group { next }
+      /^ *▶ / { headed[$0] = 1; next }
+      /^ *✖ .* \([0-9.]+ms\)$/ {
+        head = $0; sub(/ \([0-9.]+ms\)$/, "", head); sub(/✖/, "▶", head)
+        if (head in headed) next
+      }
+      /^ +[0-9]+ [a-z ]+$/ { flaky = ($2 == "flaky"); next }
+      flaky && /^ +\[/ { next }
+      { flaky = 0 }
+      /^(ℹ|#) [a-z_]+ [0-9.]+$/ || /^✖ failing tests:$/ || /^[[:space:]]*# Subtest: / { next }
+      !/^[[:space:]]*(✔|✓|ok [0-9])/' "$output.mutant" "$output.mutant" >"$output.reasons"
+    grep -E -q -e "$reason" "$output.reasons" ||
+      die "a test failed with the mutant, but its log never shows the reason named ($reason), so" \
+        "it may have failed for another (a group's own failure is not read: name a test in it);" \
+        "see $output"
+    outcome=killed
+    ;;
+esac
+logged "$outcome"
+echo "mutate: $outcome: $file: $summary"
+echo "$recorded"
+if [ "$outcome" = killed ]; then exit 0; fi
+exit 1

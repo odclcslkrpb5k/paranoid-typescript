@@ -1,0 +1,29 @@
+#!/usr/bin/env -S bash -p
+# -p: this script takes no functions, BASH_ENV or CDPATH from the environment (its children may).
+# Runs node for the ship's checks written in TypeScript. The workstation has Docker and no node, so
+# node runs in the project's image (app:dev here: name yours), with no network and the work tree
+# mounted read-only. When SHIP_NODE names a node (SHIP_NODE=node), that node runs instead: the
+# ship's tests run inside the check container, which has node and no Docker.
+#
+# Usage: run-node [--deps] <script> [args...]    from the repository's top, which is what it mounts
+#   --deps   the image's node_modules as well, which the mount would hide (the type check needs it)
+# stdin is passed through. The exit status is node's, or docker's when the container cannot start.
+set -eEuo pipefail
+unset CDPATH
+export LC_ALL=C
+trap 'echo "run-node: line $LINENO failed" >&2; exit 2' ERR
+
+usage="usage: run-node [--deps] <script> [args...]"
+deps=()
+if [ "${1:-}" = --deps ]; then
+  shift
+  # An anonymous volume, which Docker fills from the image's own /repo/node_modules.
+  deps=(-v /repo/node_modules)
+fi
+[ $# -ge 1 ] || { echo "$usage" >&2; exit 2; }
+
+if [ -n "${SHIP_NODE:-}" ]; then
+  exec "$SHIP_NODE" "$@"
+fi
+exec docker run --rm -i --network none -u "$(id -u):$(id -g)" -v "$PWD:/repo:ro" "${deps[@]}" \
+  -w /repo app:dev node "$@"

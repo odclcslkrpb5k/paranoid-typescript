@@ -1,0 +1,10 @@
+# Steps a ship needs besides the gate and the full suite, by the paths it changes since origin's
+# main (SH-13): <extended regex over a changed path>, a tab, the step label, a tab, the exact
+# command. tools/ship/commit-and-push requires the latest run of each matching step to have passed
+# against the shipped tree from start to finish, as it does for the gate and the suite, and reads
+# this file from origin as well as from the tree. Run each one as `tools/ship/timed <label>
+# <command>`.
+#
+# None yet: these examples have no deployment to rehearse and no browser tests. A project with
+# them adds a line for each, for instance
+#   ^(deploy/|compose\.prod\.yaml$|Dockerfile$)<tab>rehearse<tab>bash deploy/rehearse.sh

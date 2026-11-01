@@ -1,0 +1,12 @@
+#!/usr/bin/env -S bash -p
+# -p: this script takes no functions, BASH_ENV or CDPATH from the environment (its children may).
+# Enabled with the pre-commit hook (core.hooksPath .githooks). The message reaches origin too and no
+# diff carries it, so the secrets check judges it whole (SH-12); tools/ship/commit-and-push does the
+# same before it commits.
+set -eEuo pipefail
+unset CDPATH
+export LC_ALL=C
+message="$(realpath "$1")"
+cd "$(git rev-parse --show-toplevel)"
+
+tools/ship/secrets_check.sh --file "$message"

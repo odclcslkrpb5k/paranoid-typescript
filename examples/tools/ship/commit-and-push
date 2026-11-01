@@ -1,0 +1,302 @@
+#!/usr/bin/env -S bash -p
+# -p: this script takes no functions, BASH_ENV or CDPATH from the environment (its children may).
+# Commits and pushes exactly the tree the ship's checks passed against, or nothing (SH-10, SH-11).
+#
+# Usage: commit-and-push <tree> <message-file> [--reviewed <tree>]
+#
+# <tree> is the hash timed printed for the final runs. Refused, with nothing committed or pushed,
+# unless all of these hold:
+#   - the tree `git add -A` would commit now is <tree>;
+#   - the latest `gate` step (tools/ship/gate) and the latest `test` step (`docker compose run
+#     --build --rm check`) each exited 0 against <tree> from start to finish, and so did every
+#     further step that required-steps names for a path the ship changes (SH-13);
+#   - every path the ship adds matches a pattern in the tree's allowed-paths, and no file it adds or
+#     changes is over 1 MiB (package-lock.json: 5 MiB) (SH-15);
+#   - the message carries nothing the secrets check refuses (SH-12): no diff carries it; on a resume,
+#     HEAD's own message, which is what is pushed;
+#   - the branch is main, HEAD is refs/remotes/origin/main (so no earlier, unchecked commit rides
+#     along), origin has exactly one push URL, and the pre-commit hook is enabled, so a commit by
+#     hand is checked too (SH-10).
+# The first ship, from an unborn HEAD, makes a root commit; that is allowed only while origin has no
+# main at all (git ls-remote). Run again after its push failed, it resumes from that root commit
+# when the commit holds <tree> and origin still has no main. Any other clone without
+# refs/remotes/origin/main is refused.
+# After the commit, it pushes only if HEAD is exactly the one new commit, holding <tree>, on main,
+# with the url.* configuration and origin's push URL as they were before the commit (a hook can
+# redirect a push). It pushes "$sha^{commit}" to origin's push URL, reads origin's main back, and
+# only then moves refs/remotes/origin/main. Replace refs and grafts are ignored throughout, so no
+# hook can show the checks one object or parent while the push sends another.
+# Before the push it records the commit in the ledger as `shipped`, so `timed --report` waits for
+# its SH-9 decision (close-ship).
+# Run again after a push that failed, it resumes: a commit on refs/remotes/origin/main already
+# holding <tree> is pushed rather than committed again.
+# --reviewed names the tree the review saw; what changed after it is printed, so the report shows
+# exactly what shipped without being reviewed.
+# Exit: 0 pushed (or nothing to do), 1 refused, 2 a usage error, 3 the script itself failed.
+set -eEuo pipefail
+# An exported CDPATH makes `cd` print the directory, which would corrupt the paths captured below.
+unset CDPATH
+# Byte-wise: under a UTF-8 locale a pattern skips a byte that is not UTF-8. Replace refs and grafts
+# would let a hook show the checks one object, or one parent, while the push sends another; the
+# graft file is a path that cannot exist, since /dev/null opens, and git then hints on every command.
+export LC_ALL=C GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null/no-grafts
+
+usage="usage: commit-and-push <tree> <message-file> [--reviewed <tree>]"
+reviewed=""
+if [ $# -eq 4 ] && [ "$3" = --reviewed ]; then
+  reviewed="$4"
+elif [ $# -ne 2 ]; then
+  echo "$usage" >&2
+  exit 2
+fi
+tree="$1"
+message="$2"
+
+# Set once a commit of this ship's exists: made by this run, or the one a resume pushes. From then
+# on no message says nothing was committed or pushed - the commit may already be on origin, and
+# whoever reads that could reset a public commit.
+committed=""
+# HEAD as this run found it, once read; "unread" until then, since "" means an unborn HEAD.
+start_head=unread
+fail() {
+  local code="$1" now
+  shift
+  if [ -z "$committed" ] && [ "$start_head" != unread ]; then
+    # A commit made despite a failure reported for it (a hook, a signal) still counts.
+    now="$(git rev-parse --verify --quiet 'HEAD^{commit}' 2>/dev/null || true)"
+    [ "$now" = "$start_head" ] || committed="${now:-an unknown commit}"
+  fi
+  if [ -n "$committed" ]; then
+    echo "commit-and-push: $*; the commit $committed may be local or on origin: compare" \
+      "git log -1 with git ls-remote origin refs/heads/main before changing anything" >&2
+  else
+    echo "commit-and-push: $*; nothing was committed or pushed" >&2
+  fi
+  exit "$code"
+}
+die() { fail 1 "$@"; }
+say() { echo "commit-and-push: $*"; }
+# -E carries this into functions, so a command that fails anywhere is reported as the script's own
+# failure, never read as a refusal.
+trap 'failed=$?; trap - ERR; fail 3 "line $LINENO failed unexpectedly (exit $failed)"' ERR
+
+here="$(cd -P "$(dirname "$0")" && pwd -P)"
+cd "$(git rev-parse --show-toplevel)"
+# Origin's copy of required-steps is read by its path in the tree, so these must be this
+# repository's own scripts: not another checkout's, outside it or nested inside it.
+[ "$here" = "$(pwd -P)/tools/ship" ] || die "these scripts ($here) are not in this repository ($PWD)"
+git_dir="$(git rev-parse --absolute-git-dir)"
+ledger="${SHIP_TIMINGS:-$git_dir/ship-timings}.ledger"
+start_head="$(git rev-parse --verify --quiet 'HEAD^{commit}' || true)"
+scratch="$(mktemp -d -p "$git_dir" ship-commit.XXXXXX)"
+trap 'rm -rf "$scratch"' EXIT
+
+[[ "$tree" =~ ^[0-9a-f]{40}$ ]] || die "$tree is not a tree id"
+[ -z "$reviewed" ] || [[ "$reviewed" =~ ^[0-9a-f]{40}$ ]] || die "$reviewed is not a tree id"
+[ -f "$message" ] || die "no message file at $message"
+[ "$(git symbolic-ref --quiet HEAD || true)" = refs/heads/main ] || die "not on main"
+
+# Where the push goes, fixed before any hook runs. One URL only: `git push origin` reaches every
+# push URL, and a push to one of them is not a push to all (SH-10).
+destination="$(git remote get-url --push --all origin 2>/dev/null)" || die "this clone has no origin"
+{ [ -n "$destination" ] && [ "$(printf '%s\n' "$destination" | wc -l)" -eq 1 ]; } ||
+  die "origin has more than one push URL; a ship pushes to exactly one"
+# url.*.insteadOf and pushInsteadOf rewrite even an explicit URL, so they are compared after the
+# commit too.
+url_config() {
+  local found=0
+  git config --get-regexp '^url\.' || found=$?
+  [ "$found" -le 1 ]
+}
+urls_before="$(url_config)" || die "the url.* configuration could not be read"
+
+git fetch --quiet origin || die "origin cannot be fetched"
+empty_tree="$(git hash-object -t tree /dev/null)"
+# The remote-tracking ref in full: a local branch named origin/main would otherwise be read first.
+bootstrap=""
+resume=""
+if upstream="$(git rev-parse --verify --quiet 'refs/remotes/origin/main^{commit}')"; then
+  [ -n "$start_head" ] || die "HEAD is unborn but origin has a main; check that out instead"
+  base="$upstream"
+else
+  # A root commit only onto an origin with no main at all, from an unborn HEAD, or resumed from a
+  # root commit already holding <tree> when the first push failed: anything else without the
+  # tracking ref is a clone that cannot say what origin holds.
+  if [ -n "$start_head" ]; then
+    { [ "$(git rev-list --parents -n 1 "$start_head")" = "$start_head" ] &&
+      [ "$(git rev-parse "$start_head^{tree}")" = "$tree" ]; } ||
+      die "this clone has no refs/remotes/origin/main; fetch it (a root commit is made only" \
+        "from an unborn HEAD, and resumed only when it holds $tree, onto an origin with no main)"
+  fi
+  remote_main="$(git ls-remote origin refs/heads/main)" || die "origin's main cannot be read"
+  [ -z "$remote_main" ] || die "origin has a main this clone has not fetched as" \
+    "refs/remotes/origin/main"
+  if [ -n "$start_head" ]; then
+    resume=yes
+    committed="$start_head"
+  fi
+  bootstrap=yes
+  upstream=""
+  base="$empty_tree"
+fi
+
+CHECK_BASE="$base" "$here/secrets_check.sh" --file "$message" ||
+  die "the commit message carries what looks like a credential, or could not be judged"
+if [ -z "$bootstrap" ]; then
+  git merge-base --is-ancestor "$upstream" HEAD || die "origin/main has commits this clone lacks"
+  # Only this script's own commit may sit between origin/main and HEAD: any other was never
+  # checked. Its parent must be origin/main and it must not be a merge, so a local merge cannot
+  # carry a second line along.
+  if [ "$start_head" != "$upstream" ]; then
+    { [ "$(git rev-list --parents -n 1 "$start_head")" = "$start_head $upstream" ] &&
+      [ "$(git rev-parse "$start_head^{tree}")" = "$tree" ]; } ||
+      die "HEAD carries commits origin/main lacks that are not this ship's"
+    resume=yes
+    committed="$start_head"
+  fi
+fi
+# Git skips a hook that is not executable, with only a warning, so both are required.
+{ [ "$(git config core.hooksPath || true)" = .githooks ] && [ -x .githooks/pre-commit ]; } ||
+  die "core.hooksPath is not .githooks, or its pre-commit is not executable, so the commit would" \
+    "run no secrets or comment check"
+
+# The latest run of each step, whatever tree it ran against, has to be the pass: an earlier pass
+# does not outvote a later failure. A row is: label, exit, start, end, command.
+latest() {
+  awk -F'\t' -v label="$1" -v cmd="$2" '$1 == label && $5 == cmd { row = $0 } END { print row }' \
+    "$ledger" 2>/dev/null || true
+}
+steps=("gate|$here/gate" "test|docker compose run --build --rm check")
+# The further steps the paths changed since origin call for, by origin's rules and the tree's; from
+# origin, not HEAD, since a resumed commit already holds the change. A malformed rule refuses.
+"$here/required" "$base" "$tree" "$upstream" >"$scratch/required" ||
+  die "the steps this ship needs could not be read from required-steps"
+while IFS=$'\t' read -r label command; do
+  steps+=("$label|$command")
+done <"$scratch/required"
+for step in "${steps[@]}"; do
+  label="${step%%|*}"
+  # In the form timed recorded it in (SH-13), split into words as timed's arguments were.
+  read -ra words <<<"${step#*|}"
+  form="$("$here/command-form" "${words[@]}" && printf x)" ||
+    die "the command of the '$label' step could not be put in its recorded form"
+  form="${form%x}"
+  status="" start="" end=""
+  IFS=$'\t' read -r _ status start end _ <<<"$(latest "$label" "$form")" || true
+  { [ "$status" = 0 ] && [ "$start" = "$tree" ] && [ "$end" = "$tree" ]; } ||
+    die "the latest '$label' step did not pass against $tree from start to finish"
+done
+
+# SH-15: every path the ship adds is one the tree's allowed-paths admits, by an extended regex
+# anchored at the path's start. Read from <tree>, the tree being shipped, so a new kind of file is
+# an edit to the list in the same change, where review sees it. A list that cannot be read as
+# patterns refuses the ship rather than admitting everything.
+allowed=tools/ship/allowed-paths
+git show "$tree:$allowed" >"$scratch/allowed" 2>/dev/null ||
+  die "$tree has no $allowed, so the paths it adds cannot be judged"
+git diff --no-renames --name-only -z --diff-filter=A "$base" "$tree" >"$scratch/unlisted"
+n=0
+while IFS= read -r pattern || [ -n "$pattern" ]; do
+  n=$((n + 1))
+  [[ -z "$pattern" || "$pattern" == \#* ]] && continue
+  [[ "$pattern" == ^?* && "$pattern" != *[[:space:]]* ]] ||
+    die "line $n of $allowed is not one extended regex starting with ^ and holding no space"
+  matched=0
+  grep -zavE -e "$pattern" "$scratch/unlisted" >"$scratch/rest" || matched=$?
+  [ "$matched" -le 1 ] || die "line $n of $allowed is not a valid extended regex"
+  mv -f "$scratch/rest" "$scratch/unlisted"
+done <"$scratch/allowed"
+if [ -s "$scratch/unlisted" ]; then
+  echo "commit-and-push: added paths no pattern in $allowed admits:" >&2
+  tr '\0' '\n' <"$scratch/unlisted" | sed 's/^/  /' >&2
+  die "add each to $allowed in this change, or take it out of the tree"
+fi
+# Sizes from one listing of the tree, for every file the ship adds or changes.
+check_sizes() {
+  local -A wanted=()
+  local name record meta size limit oversized=""
+  git diff --no-renames --name-only -z --diff-filter=AMT "$base" "$tree" >"$scratch/sized"
+  while IFS= read -r -d '' name; do wanted["$name"]=1; done <"$scratch/sized"
+  git ls-tree -r -l -z --full-tree "$tree" >"$scratch/listing"
+  while IFS= read -r -d '' record; do
+    meta="${record%%$'\t'*}"
+    name="${record#*$'\t'}"
+    [ -n "${wanted["$name"]+x}" ] || continue
+    size="${meta##* }"
+    [[ "$size" =~ ^[0-9]+$ ]] || continue
+    limit=1048576
+    [ "$name" != package-lock.json ] || limit=5242880
+    [ "$size" -le "$limit" ] || oversized+="  $name ($size bytes, limit $limit)"$'\n'
+  done <"$scratch/listing"
+  if [ -n "$oversized" ]; then
+    printf 'commit-and-push: files over the size limit:\n%s' "$oversized" >&2
+    die "a file that large is a dump or an artifact, not source"
+  fi
+}
+check_sizes
+
+# Hashed again here, not trusted from the ledger: the tree can change after the last run.
+now="$("$here/tree-hash")" || die "the tree could not be hashed"
+[ "$now" = "$tree" ] || die "the tree is $now, not the $tree that was checked"
+
+if [ -n "$reviewed" ]; then
+  say "changed since the review ($reviewed):"
+  git diff --stat "$reviewed" "$tree" || die "$reviewed is not a tree this repository has"
+fi
+
+if [ -n "$resume" ]; then
+  # Its message is the one pushed, not <message-file>, and a commit made with --no-verify skipped
+  # the commit-msg hook; the gate judges added lines, never a message. Scanned raw, every line as
+  # it is pushed. Against origin's hash list (the empty tree's, for a first ship): HEAD, the
+  # default base, is the commit being pushed, which could delete a digest and carry its value in
+  # its message.
+  git log -1 --format=%B "$start_head" >"$scratch/held"
+  CHECK_BASE="$base" "$here/secrets_check.sh" --file "$scratch/held" ||
+    die "HEAD's message carries what looks like a credential, or could not be judged"
+  say "HEAD already holds $tree and is not on origin: pushing it rather than committing again"
+elif [ -n "$start_head" ] && [ "$(git rev-parse "$start_head^{tree}")" = "$tree" ]; then
+  say "origin/main already holds $tree: nothing to do"
+  exit 0
+else
+  # Staged as tree-hash computes it, from HEAD (or nothing, before the first commit) with no stat
+  # data to trust: an entry the index holds as clean would stage a same-size edit as its old content.
+  if [ -n "$start_head" ]; then seed="$start_head"; else seed="--empty"; fi
+  { git read-tree "$seed" && git add -A; } || die "the index could not be staged from HEAD"
+  [ "$(git write-tree)" = "$tree" ] || die "the staged tree is not $tree"
+  # Strip, as an editor's commit would: with --file git's default keeps "#" lines, which the
+  # message check judged but the reader of a commit message would not expect to find there.
+  git commit --quiet --cleanup=strip --file "$message" || die "the commit was refused (see the hook's output above)"
+fi
+
+# Past this point a commit exists: fail() says it may be local or on origin.
+sha="$(git rev-parse --verify 'HEAD^{commit}')"
+committed="$sha"
+# A hook that moved main, changed what was committed or committed more on top would ship a tree
+# nobody checked: HEAD must be main, and exactly the one commit made here (or resumed), on origin's.
+[ "$(git symbolic-ref --quiet HEAD || true)" = refs/heads/main ] || die "a hook moved HEAD off main"
+[ "$(git rev-parse "$sha^{tree}")" = "$tree" ] ||
+  die "the commit holds $(git rev-parse "$sha^{tree}"), not $tree"
+if [ -n "$bootstrap" ]; then parents="$sha"; else parents="$sha $upstream"; fi
+[ "$(git rev-list --parents -n 1 "$sha")" = "$parents" ] ||
+  die "HEAD is not exactly one new commit on origin's main: a hook added commits of its own"
+urls_after="$(url_config)" || die "the url.* configuration could not be read again"
+[ "$urls_after" = "$urls_before" ] ||
+  die "the url.* configuration changed during the commit, which could send the push elsewhere"
+[ "$(git remote get-url --push --all origin 2>/dev/null || true)" = "$destination" ] ||
+  die "origin's push URL changed during the commit"
+# For the SH-9 step: the report waits on a decision about HEAD (close-ship). Recorded before the
+# push, since a push origin took but the client saw fail leaves a rerun nothing to push and nothing
+# to record; once per commit, since a resume after a push that did fail comes back here.
+short="$(git rev-parse --short "$sha")"
+awk -F'\t' -v sha="$short" '$1 == "shipped" && $5 == sha { found = 1 } END { exit !found }' \
+  "$ledger" 2>/dev/null ||
+  printf 'shipped\t0\t%s\t%s\t%s\n' "$tree" "$tree" "$short" >>"$ledger"
+# By hash, to the URL fixed before the commit; with ^{commit}, which no ref name can hold, so a tag
+# named after the hash cannot stand in for it.
+git push --quiet "$destination" "$sha^{commit}:refs/heads/main" || die "the push failed"
+# Pushing to a URL moves no remote-tracking ref, and a push can report success for something other
+# than what was meant: origin's main is read back, and only then recorded as what origin holds.
+remote_main="$(git ls-remote "$destination" refs/heads/main)" || die "origin's main cannot be read back"
+[ "${remote_main%%$'\t'*}" = "$sha" ] || die "origin's main is ${remote_main%%$'\t'*}, not $sha"
+git update-ref refs/remotes/origin/main "$sha" || die "refs/remotes/origin/main could not be set"
+say "pushed $(git log --oneline -1 "$sha")"

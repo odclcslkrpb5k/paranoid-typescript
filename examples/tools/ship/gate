@@ -1,0 +1,87 @@
+#!/usr/bin/env -S bash -p
+# -p: this script takes no functions, BASH_ENV or CDPATH from the environment (its children may).
+# The checks a ship needs besides the suite (SH-11). Format, lint and types run inside the suite
+# (`docker compose run --build --rm check` runs `npm run check`), so this gate holds what that
+# container cannot judge: the pre-commit hook's checks (secrets and comments) over everything added
+# since refs/remotes/origin/main, and no ignored file where the tests read. Quiet on success; prints
+# what failed and exits non-zero on any failure. Judged by exit status, never by filtered output.
+set -eEuo pipefail
+# An exported CDPATH would send a relative `cd` elsewhere and make it print the directory.
+unset CDPATH
+export LC_ALL=C
+trap 'echo "gate: line $LINENO failed unexpectedly" >&2; exit 3' ERR
+
+here="$(cd -P "$(dirname "$0")" && pwd -P)"
+cd "$(git rev-parse --show-toplevel)"
+failed=0
+# Each check runs with no stdin, so one that reads it cannot swallow the next one's input.
+check() {
+  local name="$1" out status=0
+  shift
+  out="$("$@" 2>&1 </dev/null)" || status=$?
+  if [ "$status" -ne 0 ]; then
+    printf 'gate: %s failed\n%s\n' "$name" "$out" >&2
+    failed=1
+  fi
+}
+
+# The hook's checks again, over what a push would carry: every line added since origin's main (the
+# empty tree before the first push), committed or not, tracked or not. An enabled hook proves a
+# check would run, not that it did; a commit made with --no-verify is judged here (SH-10).
+# Under the git dir rather than /tmp, so no other user can pre-create its lock.
+scratch="$(mktemp -u -p "$(git rev-parse --absolute-git-dir)" gate-index.XXXXXX)"
+listing="$(mktemp -p "$(git rev-parse --absolute-git-dir)" gate-ignored.XXXXXX)"
+trap 'rm -f "$scratch" "$scratch.lock" "$listing"' EXIT
+if ! seed="$(git rev-parse --verify --quiet 'HEAD^{commit}')"; then seed=--empty; fi
+since="$(git rev-parse --verify --quiet 'refs/remotes/origin/main^{commit}')" ||
+  since="$(git hash-object -t tree /dev/null)"
+if GIT_INDEX_FILE="$scratch" git read-tree "$seed" && GIT_INDEX_FILE="$scratch" git add -A; then
+  check secrets env GIT_INDEX_FILE="$scratch" CHECK_BASE="$since" "$here/secrets_check.sh"
+  check comments env GIT_INDEX_FILE="$scratch" CHECK_BASE="$since" "$here/comments_check.sh"
+else
+  # Scanning a partial index would judge less than a push carries, and call it a pass.
+  echo "gate: the tree could not be indexed, so secrets and comments were not checked" >&2
+  failed=1
+fi
+
+# The check container is built from the whole work tree, ignored files included, less what
+# .dockerignore names; a commit carries none of them, so a test could pass on a file that never
+# ships. Every ignored file is listed, and only those under a root-level name .dockerignore excludes
+# are let through. A .dockerignore line that is a pattern rather than a plain name cannot be read
+# that simply, so it fails the gate rather than excusing anything.
+declare -A excluded=()
+if [ -f .dockerignore ]; then
+  n=0
+  while IFS= read -r line || [ -n "$line" ]; do
+    n=$((n + 1))
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    if [[ "$line" =~ ^/?([A-Za-z0-9._-]+)/?$ ]]; then
+      excluded["${BASH_REMATCH[1]}"]=1
+    else
+      echo "gate: line $n of .dockerignore is not a plain name this gate can read" >&2
+      failed=1
+    fi
+  done <.dockerignore
+fi
+if git ls-files -z --others --ignored --exclude-standard >"$listing"; then
+  read_by_tests=""
+  count=0
+  while IFS= read -r -d '' name; do
+    [ -z "${excluded["${name%%/*}"]+x}" ] || continue
+    count=$((count + 1))
+    # The first few are enough to act on; a whole ignored directory could run to thousands.
+    [ "$count" -gt 20 ] || read_by_tests+="  $name"$'\n'
+  done <"$listing"
+  if [ "$count" -gt 0 ]; then
+    [ "$count" -le 20 ] || read_by_tests+="  ... $((count - 20)) more"$'\n'
+    printf 'gate: ignored files the check container would read, which a commit would not carry:\n%s' \
+      "$read_by_tests" >&2
+    failed=1
+  fi
+else
+  echo "gate: the ignored files could not be listed" >&2
+  failed=1
+fi
+
+if [ "$failed" -eq 0 ]; then echo "gate: secrets, comments and ignored files pass"; fi
+exit "$failed"

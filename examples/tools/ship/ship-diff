@@ -1,0 +1,26 @@
+#!/usr/bin/env -S bash -p
+# -p: this script takes no functions, BASH_ENV or CDPATH from the environment (its children may).
+# Prints the diff of exactly what `git add -A` would commit, untracked files included, against
+# HEAD (or, before the first commit, against the empty tree) - what the reviewers and the comment
+# re-read see. A scratch index, so the real one is untouched. Extra arguments go to `git diff`.
+set -eEuo pipefail
+unset CDPATH
+export LC_ALL=C
+trap 'echo "ship-diff: line $LINENO failed" >&2; exit 2' ERR
+
+scratch="$(mktemp -u -p "$(git rev-parse --absolute-git-dir)" diff-index.XXXXXX)"
+trap 'rm -f "$scratch" "$scratch.lock"' EXIT
+# From HEAD's tree, as tree-hash does and for the same reason: no stat data to trust wrongly.
+if base="$(git rev-parse --verify --quiet 'HEAD^{commit}')"; then
+  GIT_INDEX_FILE="$scratch" git read-tree "$base"
+else
+  branch="$(git symbolic-ref --quiet HEAD)" || { echo "ship-diff: HEAD cannot be read" >&2; exit 2; }
+  if git show-ref --verify --quiet "$branch"; then
+    echo "ship-diff: $branch exists but is not a commit" >&2
+    exit 2
+  fi
+  base="$(git hash-object -t tree /dev/null)"
+  GIT_INDEX_FILE="$scratch" git read-tree --empty
+fi
+GIT_INDEX_FILE="$scratch" git add -A
+GIT_INDEX_FILE="$scratch" git diff --cached "$base" "$@"

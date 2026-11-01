@@ -1,0 +1,32 @@
+#!/usr/bin/env -S bash -p
+# -p: this script takes no functions, BASH_ENV or CDPATH from the environment.
+# Prints a command in the one form the ledger holds it in (SH-13): its words joined by spaces, with
+# a first word that names an existing path resolved to an absolute one. timed records each step's
+# command in this form, and commit-and-push puts each required step's command in it before
+# comparing, so a rule whose command starts with a script's relative path matches the step.
+# Printed with no line break after it; a caller keeps the output whole with a sentinel.
+#
+# Usage: command-form <command...>  (exit 2 when the first word's directory cannot be resolved)
+set -eEuo pipefail
+unset CDPATH
+export LC_ALL=C
+trap 'echo "command-form: line $LINENO failed" >&2; exit 2' ERR
+
+[ $# -ge 1 ] || { echo "usage: command-form <command...>" >&2; exit 2; }
+# Resolved physically, as the kernel will run it: `cd` and `pwd` are logical, so a symlink followed
+# by `..` would collapse as text to another file. Built by expansion, with pwd's output kept whole by
+# a sentinel, and `./` before a relative directory, since `cd -- -` means the previous one.
+command="$*"
+if [[ "$1" == */* ]] && [ -e "$1" ]; then
+  rest="${*:2}"
+  dir="${1%/*}"
+  case "$dir" in
+    "") dir=/ ;;
+    /*) ;;
+    *) dir="./$dir" ;;
+  esac
+  absolute="$(cd -P -- "$dir" && pwd -P && printf x)" ||
+    { echo "command-form: the directory of $1 could not be resolved" >&2; exit 2; }
+  command="${absolute%$'\n'x}/${1##*/}${rest:+ $rest}"
+fi
+printf '%s' "$command"

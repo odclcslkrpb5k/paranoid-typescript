@@ -1,0 +1,195 @@
+#!/usr/bin/env -S bash -p
+# -p: this script takes no functions, BASH_ENV or CDPATH from the environment (its children may).
+# The mutants `mutate` recorded under .git/ship-mutants/ (TS-5): lists them with what is due,
+# records a survivor as equivalent by the guard that rules its case out, and runs one again.
+#
+# Usage: mutants                         each mutant: id, state, file, the first line it changed
+#        mutants equivalent <id> <guard> [<file>...]
+#                                         a survivor of the code as it is now is equivalent: <guard>
+#                                         says what rules its case out, and each <file> (from where
+#                                         the mutant ran) holds part of that guard
+#        mutants again <id>               runs the mutant again, from where it was run, by mutate
+#        mutants retire <id> <why>        a GONE survivor or an UNREADABLE record is answered by
+#                                         <why> (what became of the code, or of the record)
+# States: killed, uncompiled; OPEN, a survivor never judged; equivalent (<guard>); STALE, judged
+#         equivalent, but its file or a guard's file has changed since; GONE, a survivor whose
+#         text is no longer in its file: due until retired unless it was judged equivalent, and
+#         back to OPEN or STALE if the text returns; UNREADABLE, a record that is not whole, due
+#         until retired; retired (<why>).
+# Exit:  the listing 0, or 1 when one is due (OPEN, STALE, GONE never judged, UNREADABLE);
+#        equivalent and retire 0; again mutate's own (0 killed, 1 survived, 2 inconclusive); 2 on a
+#        misuse, or a failure of this script.
+#
+# A record's `equivalent` file holds the guard on its first line, then a line of a hash, a tab and
+# a path for the mutated file and each guard's file: the equivalence holds while every hash does.
+set -eEuo pipefail
+unset CDPATH
+export LC_ALL=C
+trap 'echo "mutants: line $LINENO failed" >&2; exit 2' ERR
+
+here="$(cd -P "$(dirname "$0")" && pwd -P)"
+usage='usage: mutants | mutants equivalent <id> <guard> [<file>...] | mutants again <id> |'
+usage+=' mutants retire <id> <why>'
+die() { echo "mutants: $*" >&2; exit 2; }
+git_dir="$(git rev-parse --absolute-git-dir 2>/dev/null)" || die "not in a git repository"
+records="$git_dir/ship-mutants"
+
+# Reading while a mutant is in a file would see the mutant: hold mutate's lock shared, as a ship
+# step does. `again` takes none, since the mutate it runs takes the lock itself.
+hold() {
+  { mkdir -p "$git_dir/ship-mutate" && exec 9>>"$git_dir/ship-mutate/lock"; } ||
+    die "cannot open the lock in $git_dir/ship-mutate"
+  flock -s -n 9 || die "a mutate run is under way; try again once it ends"
+}
+# Sets variable $1 to field $3 of the record at $2, read whole: a command substitution would strip
+# trailing newlines, which a find or a replacement may end with. Fails when the field is missing.
+load() {
+  local text
+  [ -f "$2/$3" ] || return 1
+  text="$(cat "$2/$3"; printf x)" || return 1
+  printf -v "$1" '%s' "${text%x}"
+}
+# The hash of file $2 as named from directory $1, or nothing when it is gone.
+hash_of() {
+  ( cd "$1" && [ -f "$2" ] && sha256sum <"$2" ) 2>/dev/null | cut -d' ' -f1 || true
+}
+# Whether file $2, as named from $1, holds the text $3.
+holds() {
+  local text
+  text="$( cd "$1" 2>/dev/null && cat -- "$2" 2>/dev/null; printf x)" || return 1
+  [[ "${text%x}" == *"$3"* ]]
+}
+# The last verdict's outcome (field 2) or the hash of the file it judged (field 3).
+last() {
+  tail -n 1 "$1/verdicts" | cut -f"$2"
+}
+# Whether an equivalence still holds: it names the mutated file $3, and every hash in it still
+# matches its file.
+holding() {
+  local dir="$1" cwd="$2" hash path named=1
+  while IFS=$'\t' read -r hash path; do
+    [ "$(hash_of "$cwd" "$path")" = "$hash" ] || return 1
+    [ "$path" != "$3" ] || named=0
+  done < <(tail -n +2 "$dir/equivalent")
+  return "$named"
+}
+# The state of the record at $1, in `state`, and whether it is due, in `due_now` (0 or 1).
+judge() {
+  local dir="$1" cwd file find
+  due_now=0
+  if ! { load cwd "$dir" cwd && load file "$dir" file && load find "$dir" find &&
+    [ -f "$dir/verdicts" ]; }; then
+    state=UNREADABLE
+  else
+    state="$(last "$dir" 2)"
+    case "$state" in
+      killed | uncompiled) ;;
+      SURVIVED)
+        if ! holds "$cwd" "$file" "$find"; then
+          state=GONE
+          # Judged equivalent, it was answered for the code that is gone; never judged, it is
+          # answered only by saying what became of that code.
+          [ -f "$dir/equivalent" ] || due_now=1
+        elif [ ! -f "$dir/equivalent" ]; then
+          state=OPEN
+          due_now=1
+        elif holding "$dir" "$cwd" "$file"; then
+          state="equivalent ($(head -n 1 "$dir/equivalent"))"
+        else
+          state=STALE
+          due_now=1
+        fi
+        ;;
+      *) state=UNREADABLE ;;
+    esac
+  fi
+  [ "$state" != UNREADABLE ] || due_now=1
+  # A retirement answers the state it was given for, so text that comes back is judged again,
+  # and a record found not whole after a GONE survivor was retired is due again.
+  if [ "$due_now" -eq 1 ] && [ -f "$dir/retired" ] &&
+    [ "$(head -n 1 "$dir/retired" | cut -f1)" = "$state" ]; then
+    state="retired ($(head -n 1 "$dir/retired" | cut -f2-))"
+    due_now=0
+  fi
+}
+# Sets dir to the record of mutant $1, here rather than in a subshell, so that a refusal stops
+# the script. A record that is not whole is still found, so each verb can name it so.
+record_of() {
+  { [[ "$1" =~ ^[0-9a-f]{16}$ ]] && [ -d "$records/$1" ]; } || die "no mutant $1"
+  dir="$records/$1"
+}
+
+case "${1:-}" in
+  "")
+    [ $# -eq 0 ] || { echo "$usage" >&2; exit 2; }
+    hold
+    due=0
+    for dir in "$records"/*/; do
+      [ -d "$dir" ] || continue
+      dir="${dir%/}"
+      judge "$dir"
+      [ "$due_now" -eq 0 ] || due=1
+      file="?"
+      load file "$dir" file || true
+      summary=""
+      [ ! -f "$dir/find" ] || summary="$(sed -n '/[^[:space:]]/{p;q;}' "$dir/find" | cut -c1-60)"
+      # One row per mutant, whatever its path holds.
+      file="${file//[$'\t\n']/ }"
+      summary="${summary//$'\t'/ }"
+      printf '%s\t%s\t%s\t%s\n' "${dir##*/}" "$state" "$file" "$summary"
+    done
+    exit "$due"
+    ;;
+  equivalent)
+    { [ $# -ge 3 ] && [ -n "${3//[[:space:]]/}" ]; } || { echo "$usage" >&2; exit 2; }
+    record_of "$2"
+    hold
+    { load cwd "$dir" cwd && load file "$dir" file && [ -f "$dir/verdicts" ]; } ||
+      die "mutant $2's record is not whole: retire it (mutants retire $2 <why>)"
+    [ "$(last "$dir" 2)" = SURVIVED ] || die "mutant $2 did not survive its last run"
+    now="$(hash_of "$cwd" "$file")"
+    [ -n "$now" ] || die "$file, mutant $2's file, is gone"
+    # Judged for the code its last run saw, or the equivalence would name code nobody ran it on.
+    [ "$now" = "$(last "$dir" 3)" ] ||
+      die "$file has changed since mutant $2 last ran; run it again (mutants again $2)"
+    guard="${3//[$'\t\n']/ }"
+    lines="$(printf '%s\n%s\t%s' "$guard" "$now" "$file")"
+    for named in "${@:4}"; do
+      [[ "$named" != *[$'\t\n']* ]] || die "a guard's file name holds a tab or a line break"
+      hash="$(hash_of "$cwd" "$named")"
+      [ -n "$hash" ] || die "no file $named, from $cwd"
+      lines+=$'\n'"$hash"$'\t'"$named"
+    done
+    # Whole or not at all: written aside, then moved over the last one.
+    printf '%s\n' "$lines" >"$dir/equivalent.part"
+    mv -f "$dir/equivalent.part" "$dir/equivalent"
+    echo "mutants: $2 is equivalent: $guard"
+    ;;
+  retire)
+    { [ $# -eq 3 ] && [ -n "${3//[[:space:]]/}" ]; } || { echo "$usage" >&2; exit 2; }
+    record_of "$2"
+    hold
+    judge "$dir"
+    { [ "$state" = GONE ] || [ "$state" = UNREADABLE ]; } && [ "$due_now" -eq 1 ] ||
+      die "mutant $2 is $state: only a GONE survivor never judged, or a record that is not" \
+        "whole, is retired"
+    why="${3//[$'\t\n']/ }"
+    printf '%s\t%s\n' "$state" "$why" >"$dir/retired.part"
+    mv -f "$dir/retired.part" "$dir/retired"
+    echo "mutants: $2 is retired: $why"
+    ;;
+  again)
+    [ $# -eq 2 ] || { echo "$usage" >&2; exit 2; }
+    record_of "$2"
+    for name in cwd file find replace reason command verdicts; do
+      [ -f "$dir/$name" ] ||
+        die "mutant $2's record is not whole: retire it (mutants retire $2 <why>)"
+    done
+    for name in cwd file find replace reason; do load "$name" "$dir" "$name"; done
+    mapfile -d '' command <"$dir/command"
+    [ "${#command[@]}" -gt 0 ] || die "mutant $2 has no command"
+    cd "$cwd" || die "the directory mutant $2 ran in is gone"
+    exec "$here/mutate" "$file" "$find" "$replace" "$reason" -- "${command[@]}"
+    ;;
+  *) echo "$usage" >&2; exit 2 ;;
+esac

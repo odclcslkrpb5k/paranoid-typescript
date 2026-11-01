@@ -1,0 +1,156 @@
+#!/usr/bin/env -S bash -p
+# -p: this script takes no functions, BASH_ENV or CDPATH from the environment (its children may).
+# Times one ship step and records what it cost, in .git/ so the log can never be committed; the
+# report needs the numbers to say which part of a cycle is worth trimming.
+#
+# Each step also records the tree it ran against, at its start and at its end (tree-hash), in a
+# ledger beside the log. A step whose tree changed while it ran tested something that no longer
+# exists, and is marked stale; commit-and-push ships only a tree that steps passed against from
+# start to finish. The ledger also holds a `shipped` row for each pushed commit and a `standard`
+# row for its SH-9 decision (close-ship); while a ship is undecided, --report and --start refuse.
+#
+# A zero exit is necessary, not sufficient (SH-11): a step whose output reports a failing test is
+# recorded as failed (exit 1), since a runner can exit 0 having failed one (node:test, when a
+# top-level `after` hook throws under --test-isolation=none).
+set -eEuo pipefail
+# An exported CDPATH makes `cd` print the directory, which would corrupt the recorded command.
+unset CDPATH
+export LC_ALL=C
+trap 'echo "timed: line $LINENO failed" >&2; exit 2' ERR
+
+# Resolved through git rather than assumed relative, so the log lands in the same place whatever
+# directory a step happens to be run from.
+git_dir="$(git rev-parse --absolute-git-dir 2>/dev/null)" ||
+  { echo "timed: not in a git repository" >&2; exit 2; }
+LOG="${SHIP_TIMINGS:-$git_dir/ship-timings}"
+LEDGER="$LOG.ledger"
+HERE="$(cd -P "$(dirname "$0")" && pwd -P)"
+
+# True while the latest `shipped` row has no `standard` row after it.
+undecided() {
+  awk -F'\t' '$1 == "shipped" { open = 1 } $1 == "standard" { open = 0 } END { exit !open }' \
+    "$LEDGER" 2>/dev/null
+}
+
+case "${1:-}" in
+  --start)
+    # Starting over would erase the record that the last ship still owes its SH-9 decision.
+    if undecided; then
+      echo "timed: the last ship has no SH-9 decision yet; run tools/ship/close-ship first" >&2
+      exit 2
+    fi
+    : >"$LOG"
+    : >"$LEDGER"
+    exit 0
+    ;;
+  --report)
+    # SH-9: a ship's report waits until its standard decision is recorded (close-ship).
+    if undecided; then
+      echo "timed: the latest ship has no SH-9 decision; run tools/ship/close-ship --nothing, or" \
+        "--sent \"<the candidates>\" once they are sent to the standard's maintainers" >&2
+      exit 2
+    fi
+    [ -s "$LOG" ] || exit 0
+    cat "$LOG"
+    # Each step's seconds are the field just before "load" (a label may hold spaces and digits of
+    # its own), or, on a line an earlier timed wrote, with no load, in a ship it started, its last
+    # digits-and-"s" field. The exit marker is no part of either, and a three-minute run that
+    # failed is exactly the one worth seeing.
+    awk '{ seconds = ""
+           for (i = NF; i >= 2; i--)
+             if ($i == "load" && $(i - 1) ~ /^[0-9]+s$/) { seconds = $(i - 1); break }
+           if (seconds == "")
+             for (i = NF; i >= 2; i--) if ($i ~ /^[0-9]+s$/) { seconds = $i; break }
+           total += seconds + 0 }
+         END { printf "%-28s %4ds\n", "TOTAL", total }' "$LOG"
+    exit 0
+    ;;
+  "")
+    echo "usage: timed <label> <command...> | timed --start | timed --report" >&2
+    exit 2
+    ;;
+esac
+
+label="$1"
+shift
+[ $# -ge 1 ] || { echo "usage: timed <label> <command...>" >&2; exit 2; }
+case "$label" in
+  shipped | standard) echo "timed: '$label' is the ledger's own label for a ship" >&2; exit 2 ;;
+esac
+# Recorded as what ran, in the form commit-and-push compares a required step's command in
+# (command-form): a path made absolute, so a label's command is known from wherever it was typed.
+command="$("$HERE/command-form" "$@" && printf x)" ||
+  { echo "timed: the command could not be put in its recorded form" >&2; exit 2; }
+command="${command%x}"
+# A tab or line break would let a label or command write a row of its own into the ledger, or name
+# a script other than the one that ran. Judged as written, since the absolute path takes in the
+# names of the directories above the script, and in what it was built from, since `$(...)` strips a
+# trailing line break: `gate` and a file named `gate` plus a line break would record alike.
+if [[ "$label$*$PWD$command" == *[$'\t\n\r']* ]]; then
+  echo "timed: a label or command holding a tab or line break could forge a ledger row" >&2
+  exit 2
+fi
+# A tree id is all a hash may write into the row: anything else is a git that is not git.
+hash_tree() {
+  local hash
+  hash="$("$HERE/tree-hash" 9>&-)" && [[ "$hash" =~ ^[0-9a-f]{40}$ ]] && echo "$hash"
+}
+# No step reads the tree while a mutant is in it (TS-5): the step holds mutate's lock shared from
+# start to end, so no mutate starts during it and it starts during none; and none starts while a
+# run that never finished has left a file's original behind.
+mutants="$git_dir/ship-mutate"
+{ mkdir -p "$mutants" && exec 9>>"$mutants/lock"; } ||
+  { echo "timed: cannot open the lock in $mutants" >&2; exit 2; }
+flock -s -n 9 ||
+  { echo "timed: a mutate run is in progress; a step now would read its mutant" >&2; exit 2; }
+for kept in "$mutants"/*.orig; do
+  [ -e "$kept" ] || continue
+  echo "timed: a mutate run never finished: $kept is the original of" \
+    "$(cat "${kept%.orig}.path" 2>/dev/null || echo "a file it did not name")." \
+    "If that file is intact, remove the copy; if not, cp -p the copy over it first." >&2
+  exit 2
+done
+before="$(hash_tree)" || { echo "timed: the tree could not be hashed" >&2; exit 2; }
+# The lines a test runner prints only when a test failed: node:test's `ℹ fail N` or
+# `ℹ cancelled N` (`#` in TAP) with N above 0, its "failing tests" heading, and TAP's top-level
+# `not ok` (the only sign, in TAP, of a failing top-level `after` hook) unless a SKIP or TODO
+# directive marks it, which a test's own name cannot fake: node:test escapes its `#`.
+# Playwright's `N failed`. Read at the start of a line, with colour and a terminal's carriage
+# return taken off. Not `grep -q`: it stops at the first match, and sed's broken pipe would fail
+# the pipeline.
+reports_failure() {
+  local failing='^(ℹ|#) (fail|cancelled) [1-9][0-9]*$|^✖ failing tests:$|^ +[1-9][0-9]* failed$'
+  failing+='|^not ok [0-9]+( |$)'
+  sed -E $'s/\r$//; s/\x1b\\[[0-9;]*m//g' "$1" | grep -E "$failing" |
+    grep -viE '^not ok .*[^\\]# (skip|todo)' >/dev/null
+}
+out="$(mktemp -p "$git_dir" ship-timed.XXXXXX)" ||
+  { echo "timed: cannot make a file for the step's output" >&2; exit 2; }
+trap 'rm -f "$out" "$out.status"' EXIT
+start=$SECONDS
+# Not a function named like the step, should one be defined despite -p (run as `bash timed`, say).
+# Its standard output is kept as it streams, to be read for failures once it ends. tee ignores
+# Ctrl-C (-i), so a step that cleans up on it can still write while it does.
+{ command -- "$@" 9>&- || echo "$?" >"$out.status"; } | tee -i "$out"
+elapsed=$((SECONDS - start))
+status="$(cat "$out.status" 2>/dev/null)" || status=0
+if [ "$status" -eq 0 ] && reports_failure "$out"; then
+  echo "timed: the command exited 0, but its output reports a failing test" >&2
+  status=1
+fi
+after="$(hash_tree)" || after=unknown
+# The host's 1-minute load and its cores as the step ends (SH-7): a timing gate that fails while
+# the load is above the core count failed on contention, and is run again once the host is quiet.
+load="$(cut -d ' ' -f 1 /proc/loadavg 2>/dev/null)" || load=unknown
+cores="$(getconf _NPROCESSORS_ONLN 2>/dev/null)" || cores=unknown
+printf '%-28s %4ds  load %s of %s cores%s\n' \
+  "$label" "$elapsed" "${load:-unknown}" "${cores:-unknown}" \
+  "$([ "$status" -eq 0 ] && echo "" || echo "  (exit $status)")" |
+  tee -a "$LOG" >&2
+printf '%s\t%s\t%s\t%s\t%s\n' "$label" "$status" "$before" "$after" "$command" >>"$LEDGER"
+if [ "$before" = "$after" ]; then
+  echo "timed: tree $before" >&2
+else
+  echo "timed: *** STALE: the tree changed while this ran ($before -> $after); it tested neither" >&2
+fi
+exit "$status"

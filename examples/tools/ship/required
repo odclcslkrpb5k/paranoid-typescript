@@ -1,0 +1,67 @@
+#!/usr/bin/env -S bash -p
+# -p: this script takes no functions, BASH_ENV or CDPATH from the environment.
+# Prints the further steps a ship needs (SH-13): one line per rule in required-steps whose pattern
+# matches a path changed from <base> to <tree>, as <label><tab><command>, in the order the rules
+# give, each once. The rules are read from <origin> as well as the tree, so a ship cannot drop the
+# step it would need; <origin> is empty before the first push. commit-and-push requires each step
+# printed here; steps runs them.
+#
+# Usage: required <base> <tree> [<origin>]
+# Exit: 0 the list was printed (perhaps empty), 1 a rules file is malformed or gone, 2 a usage
+# error, 3 the script itself failed. A rules file that cannot be read refuses rather than requiring
+# nothing.
+set -eEuo pipefail
+unset CDPATH
+export LC_ALL=C GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null/no-grafts
+trap 'echo "required: line $LINENO failed" >&2; exit 3' ERR
+
+[ $# -eq 2 ] || [ $# -eq 3 ] || { echo "usage: required <base> <tree> [<origin>]" >&2; exit 2; }
+base="$1"
+tree="$2"
+origin="${3:-}"
+die() {
+  echo "required: $*" >&2
+  exit 1
+}
+
+cd "$(git rev-parse --show-toplevel)"
+git_dir="$(git rev-parse --absolute-git-dir)"
+scratch="$(mktemp -d -p "$git_dir" ship-required.XXXXXX)"
+trap 'rm -rf "$scratch"' EXIT
+
+# Every path changed (both names of a rename), NUL-separated, so a name git would quote is matched
+# as it is.
+changed="$scratch/changed"
+git diff --no-renames --name-only -z "$base" "$tree" >"$changed" ||
+  die "the paths changed from $base to $tree could not be listed"
+
+rules=tools/ship/required-steps
+declare -A seen=()
+read_rules() {
+  local n=0 line pattern label command rest tabs matched
+  while IFS= read -r line || [ -n "$line" ]; do
+    n=$((n + 1))
+    [[ -z "${line//[[:space:]]/}" || "$line" == \#* ]] && continue
+    tabs="${line//[^$'\t']/}"
+    IFS=$'\t' read -r pattern label command rest <<<"$line" || true
+    [[ ${#tabs} -eq 2 && -n "$label" && -n "$command" && "$line" != *$'\r'* &&
+      "$label" != *'|'* && "$label" != shipped && "$label" != standard &&
+      "$pattern" != [[:space:]]* ]] ||
+      die "line $n of $1 is not <pattern><tab><label><tab><command>"
+    matched=0
+    grep -zaE -e "$pattern" "$changed" >/dev/null || matched=$?
+    [ "$matched" -le 1 ] || die "line $n of $1 is not a valid extended regex"
+    [ "$matched" -eq 1 ] && continue
+    [ -z "${seen["$label|$command"]+x}" ] || continue
+    seen["$label|$command"]=1
+    printf '%s\t%s\n' "$label" "$command" >>"$scratch/steps"
+  done
+}
+: >"$scratch/steps"
+if [ -n "$origin" ] && git cat-file -e "$origin:$rules" 2>/dev/null; then
+  [ -f "$rules" ] || die "$rules is on origin and gone from this tree"
+  git show "$origin:$rules" >"$scratch/origin-rules"
+  read_rules "origin's $rules" <"$scratch/origin-rules"
+fi
+if [ -f "$rules" ]; then read_rules "$rules" <"$rules"; fi
+cat "$scratch/steps"

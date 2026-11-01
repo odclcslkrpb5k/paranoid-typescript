@@ -1,0 +1,53 @@
+#!/usr/bin/env -S bash -p
+# -p: this script takes no functions, BASH_ENV or CDPATH from the environment (its children may).
+# Runs a ship's final steps, each under timed, in order, and stops at the first that fails (SH-11):
+# the gate; then, only once it has passed, the full suite; then each further step required-steps
+# calls for (SH-13) by the paths changed since origin's main, as commit-and-push will require them
+# (tools/ship/required). Each step's line from timed names the tree it ran against, or says it
+# went stale; commit-and-push takes the tree from there.
+#
+# Usage: steps
+# Exit: the failing step's status, 0 when every step passed, 1 when origin cannot be fetched or the
+# required steps cannot be read, 2 a usage error, 3 when the script itself failed.
+set -eEuo pipefail
+unset CDPATH
+export LC_ALL=C GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null/no-grafts
+trap 'echo "steps: line $LINENO failed" >&2; exit 3' ERR
+
+[ $# -eq 0 ] || { echo "usage: steps" >&2; exit 2; }
+here="$(cd -P "$(dirname "$0")" && pwd -P)"
+cd "$(git rev-parse --show-toplevel)"
+git_dir="$(git rev-parse --absolute-git-dir)"
+scratch="$(mktemp -d -p "$git_dir" ship-steps.XXXXXX)"
+trap 'rm -rf "$scratch"' EXIT
+
+git fetch --quiet origin || { echo "steps: origin cannot be fetched" >&2; exit 1; }
+# Before the first push origin has no main, and every path counts as changed.
+if origin="$(git rev-parse --verify --quiet 'refs/remotes/origin/main^{commit}')"; then
+  base="$origin"
+else
+  origin=""
+  base="$(git hash-object -t tree /dev/null)"
+fi
+# Read before anything runs, so a malformed rule stops the ship before a long step, not after it.
+tree="$("$here/tree-hash")"
+"$here/required" "$base" "$tree" "$origin" >"$scratch/required" ||
+  { echo "steps: the steps this ship needs could not be read" >&2; exit 1; }
+
+# One step under timed; its failure ends the run with the step's own status.
+step() {
+  local status=0
+  "$here/timed" "$@" </dev/null || status=$?
+  if [ "$status" -ne 0 ]; then
+    echo "steps: '$1' failed (exit $status); no later step ran" >&2
+    exit "$status"
+  fi
+}
+step gate "$here/gate"
+step test docker compose run --build --rm check
+while IFS=$'\t' read -r label command; do
+  # Split into words as commit-and-push splits the rule, so timed records the form it compares.
+  read -ra words <<<"$command"
+  step "$label" "${words[@]}"
+done <"$scratch/required"
+echo "steps: every step passed; timed named the tree each ran against above"

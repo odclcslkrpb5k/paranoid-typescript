@@ -35,6 +35,8 @@ does not yet support 7.0); tests use `node:test`, valibot and fast-check.
 | [`Dockerfile`](Dockerfile), [`compose.yaml`](compose.yaml)                                       | the environment as files: runtime, git and packages pinned; the check with no network                                    | TC-9, TC-1, TS-1, TS-8     |
 | [`../.github/workflows/examples.yml`](../.github/workflows/examples.yml)                         | CI running the same compose service                                                                                      | TC-5, TC-9                 |
 | [`test/cli.test.ts`](test/cli.test.ts)                                                           | the git-driven tools run end to end in throwaway repositories                                                            | BD-2, CD-7                 |
+| [`tools/ship/`](tools/ship/), [`.githooks/`](.githooks/)                                         | the ship tool: commit and push only the checked tree, required steps, secrets, added paths, mutation testing             | SH-9 to SH-15, TS-5, CD-1  |
+| [`test/ship/`](test/ship/)                                                                       | the ship tool run for real, in throwaway repositories with a bare origin                                                 | SH-10, SH-11, SH-14        |
 
 `tools/` and `lint/` keep every type and lint rule but are exempt from the architecture rules of
 chapter 04: they are small programs whose whole job is to drive git, `tsc` and ESLint, so each is
