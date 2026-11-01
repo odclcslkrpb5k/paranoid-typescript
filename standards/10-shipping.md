@@ -328,6 +328,11 @@ were each met in a real script.
   none, while any separate write after the match failed every time, even an empty line. A test
   with a short log in one write passes, and a mutation script then reported real kills on
   full-suite logs as inconclusive. Test the filter with a log larger than the pipe buffer (64 KiB).
+- Tee a step's output with `tee -i`. Ctrl-C reaches the whole process group, so a plain `tee` dies
+  with the step, and what the step writes while it cleans up meets a closed pipe: on bash 5.2 and
+  coreutils 9.7, a step that wrote three lines from its `INT` trap died of SIGPIPE (141) with none
+  of them in the log and its own exit status (7) lost, while under `tee -i` all three were logged
+  and the status kept. In one ship, a step killed that way left its container behind.
 - `unset CDPATH` as well, in case the script is ever run without `-p`: with it set, `cd` may print
   the directory it chose, and `$(cd "$d" && pwd)` returns two lines. Test by the relative path the
   ship uses, since `cd` ignores CDPATH for an absolute one.
