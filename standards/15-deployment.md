@@ -158,6 +158,15 @@ that checks a process's configuration runs under the same grants as the command 
 them by the same test: one preflight, started with a bare `node`, would have passed a configuration
 that read a file outside the granted path, which the process would then refuse at boot.
 
+Give the grants through the environment the runtime reads, set on each service, not on its
+command: `docker compose run <svc> <command>` keeps the service's environment but replaces its
+command, so an administrative tool run that way held no grants at all. Node 26.13.0 accepts
+`--permission`, `--allow-fs-read` and `--allow-net` in `NODE_OPTIONS`. The contract test reads each
+service's own environment, since one that declares `environment:` replaces the whole map a YAML
+merge key (`<<: *app`) brought in (Compose 5.5.1). Keep the grants out of an image that also runs
+the checks: under them npm, installed outside the project, failed with `ERR_ACCESS_DENIED`. The
+rehearsal starts a process in each container and asks `process.permission` what it holds.
+
 Two grants are not what they look like (Node 26.13.0). `--allow-net` takes no value:
 `--allow-net=example.com` is accepted without complaint and a fetch to another host still
 succeeds, so a host list there restricts nothing; without the flag, even a test server on loopback
