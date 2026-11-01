@@ -81,6 +81,15 @@ so its guarantees hold only if those options match. The consumer runs the librar
 own suite, and a test fails when its root configuration lacks one of the library's options or sets
 it differently, with a planted mismatch proving the test can fail (TS-7).
 
+The fixtures run under the root configuration, so they cannot see a configuration below it. The
+same test also reads every other configuration the checker honours (each project a `references`
+entry reaches, each Deno workspace member) and fails when one sets a required option differently;
+one may restate an option, never reverse it. On TypeScript 6.0.3, `tsc -b` built a referenced
+project whose tsconfig extended the root but set `noUnusedLocals: false`, with an unused local in
+its file, and exited 0. On Deno 2.9.6 a workspace member's own `compilerOptions` did the same for
+its files, so a vendored package kept as a member could switch a check off; only a member file the
+root's code imported was still reported.
+
 **Why:** the settings file can claim a protection the checker does not give. An `extends` chain can
 override a flag, a later edit can drop one, and a runtime with a built-in checker can ignore an
 option it does not know (TC-1). Each passes the check while the protection is gone; only a fixture
