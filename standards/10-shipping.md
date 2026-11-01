@@ -176,6 +176,11 @@ and a crash never share an exit status: a checker that exits 1 for a finding can
 runtime that exits 1 on an uncaught exception, so findings get their own code. The exit status
 is necessary, not sufficient: a test runner can exit 0 having failed (TS-3's top-level `after`
 hook under `--test-isolation=none`), so the gate also refuses a run whose output lists a failure.
+It reads failure lines, not counts: under the TAP reporter, Node 26.13.0 reports that case as
+`# fail 0`, and the failure shows only as a top-level `not ok 3 - <file>` with
+`failureType: 'hookFailed'`. Any `not ok` at column 0 fails the run unless a `# TODO` or `# SKIP`
+directive follows it; node:test escapes a `#` in a test's name as `\#`, so match the directive
+with `[^\\]# (TODO|SKIP)`.
 
 **Why:** `lint | tail -1` showed "Checked 247 files" with the error above it, twice in one session;
 `gate | tail && git commit` shipped a failing test; a commit joined to a release with `;` was
