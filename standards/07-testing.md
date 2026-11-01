@@ -84,7 +84,11 @@ tool:
   compile as its own outcome — it fails every test and would otherwise score as caught. Under
   `noUnusedLocals` and `noUnusedParameters` (CP-1), deleting the only use of a constant or a
   parameter fails to compile (TS6133), so write such a mutant to keep every symbol in use
-  (`x || false`, `n * 0`);
+  (`x || false`, `n * 0`). Under `allowUnreachableCode: false` (CP-1), a guard disabled with
+  `cond && false` leaves its branch unreachable and fails to compile (TS7027): in one service 7 of
+  20 guard mutants were lost this way, and all 7 compiled and were caught once written
+  `cond && Math.random() < 0`, which the checker cannot fold. A guard whose branch narrows a type
+  fails to compile with either form (TS18047 on TypeScript 6.0.3): there the compiler is the guard;
 - counts a mutant as caught only when a test fails, read from the test runner's own counts of tests
   that failed and tests it cancelled (`node:test` reports a test cut off by `--test-timeout` as
   cancelled, with a fail count of 0, and a mutant that makes code hang is a real kill), never from
