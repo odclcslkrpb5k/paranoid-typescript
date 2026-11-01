@@ -87,9 +87,11 @@ tool:
   (`x || false`, `n * 0`). Disable a guard with a falsifier no checker can fold,
   `cond && Math.random() < 0`, not `cond && false`: in one service 7 of 20 guard mutants written
   the second way were refused before any test ran, and all 7 compiled and were caught once written
-  the first. Under `allowUnreachableCode: false` (CP-1), `cond && false` leaves the guarded branch
-  unreachable and fails to compile (TS7027) on TypeScript 6.0.3. A guard whose branch narrows
-  a type fails to compile with either form (TS18047 or TS2339): there the compiler is the guard;
+  the first. The checker narrows nothing in code it proves unreachable, so a guarded block (or the
+  code after `if (cond || true) return`) that reads a value narrowed outside it fails with TS2339
+  on TypeScript 6.0.3 and Deno 2.9.6, as each of those 7 did; under `allowUnreachableCode: false`
+  (CP-1) any such block fails, with TS7027. A guard whose branch narrows a type fails to compile
+  with either form (TS18047 or TS2339): there the compiler is the guard;
 - counts a mutant as caught only when a test fails, read from the test runner's own counts of tests
   that failed and tests it cancelled (`node:test` reports a test cut off by `--test-timeout` as
   cancelled, with a fail count of 0, and a mutant that makes code hang is a real kill), never from
