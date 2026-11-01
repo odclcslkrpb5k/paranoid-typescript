@@ -153,7 +153,10 @@ Run with the runtime's permission model where it has one, granting what the serv
 nothing else. Node's `--permission` governs the file system (`--allow-fs-read`,
 `--allow-fs-write`), child processes and workers, but network access only as all or nothing; Deno's
 `--allow-*` also grants network access per host. Grant what the model allows, and test the
-production command's grants against the paths the compose file mounts (TS-7).
+production command's grants against the paths the compose file mounts (TS-7). A release's preflight
+that checks a process's configuration runs under the same grants as the command it checks, held to
+them by the same test: one preflight, started with a bare `node`, would have passed a configuration
+that read a file outside the granted path, which the process would then refuse at boot.
 
 Two grants are not what they look like (Node 26.13.0). `--allow-net` takes no value:
 `--allow-net=example.com` is accepted without complaint and a fetch to another host still
