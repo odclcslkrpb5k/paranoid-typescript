@@ -180,8 +180,9 @@ directions. Make an ambiguous match fail (assert exactly one match, never `.find
 count goes after the assertions it protects. A gate that finds no tests to run fails. A
 third-party checker is such a check: its exit status says nothing about what it read, so the gate
 parses its report and compares the files it says it checked with the build's own list. A check
-whose evidence is an absence ("not found", "no differences") tells absent from refused: it checks
-the status of every answer, and first reads a subject known to be present, with the same
+whose evidence is an absence ("not found", "no differences") tells absent from refused. It names
+the answers that mean absent (a 404, an empty list in a 200) and fails on every other answer,
+rather than listing the refusals; and it first reads a subject known to be present, with the same
 credential, as a positive control.
 
 **Why:** zero findings over zero subjects is the same green as zero findings over all of them. A
@@ -193,7 +194,10 @@ an approval label that made an end-to-end gate skip its four shards in fifteen s
 success, and from an advisory job whose steps were all allowed to fail, which reported success for
 two days while dead. Review of a probe that compared stored keys with a remote service found it
 never read the HTTP status: an expired token would have answered "not found" for every key, and a
-refused request for the list of options would have read as "no differences", each with exit 0.
+refused request for the list of options would have read as "no differences", each with exit 0. A
+list of refusals (401, 403, 5xx) written to fix it still missed three of the client's own answers:
+status 0 when the service was unreachable or timed out after retries, a 429 after its retries ran
+out, and a proxy's page in place of the body.
 
 **Enforced by:** Administer, in review; Engineer where the gate compares a tool's report with the
 build's file list. Missing Engineer control: a lint rule refusing `.find(` where a check selects
