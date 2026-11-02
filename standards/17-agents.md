@@ -86,8 +86,9 @@ same; each time the guarded edit went ahead. A hook that read valid JSON with no
 missing from `PATH` the command exited 127, and on a module that failed to load it exited 1 (Node
 26.13.0 under `sh`), before any catch-all could run; `|| exit 2` turned each into a block.
 
-**Enforced by:** Engineer — the catch-all, `|| exit 2`, and the three tests. Keep a way back
-(AG-14): a bug in a fail-closed hook refuses every call it guards.
+**Enforced by:** Engineer — the catch-all, `|| exit 2`, and the three tests. Keep a way to turn
+the hook off that does not pass through it: a bug in a fail-closed hook refuses every call it
+guards, including the edit that would fix it.
 
 **Prior art:** fail-safe defaults (Saltzer and Schroeder, 1975); ER-5's safety net, pointed the
 other way: a net in front of a gate refuses rather than carries on.
