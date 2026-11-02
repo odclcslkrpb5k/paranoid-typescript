@@ -131,7 +131,9 @@ class name, and a `Panic`'s message (the program's own words, and the only diagn
 invariant); counts it toward the run's failure limit, raising or feeding an alert (SV-11); and
 never treats it as success. It never records a foreign error's message or the error object, which
 may quote the input that failed, and records its `code` only when that matches
-`^[A-Z][A-Z0-9_]*$`.
+`^[A-Z][A-Z0-9_]{0,63}$`. Without the bound, an error body written wholly in capitals passes as a
+code. A code withheld is recorded as a word the pattern refuses, such as `unprintable`; a
+placeholder like `UNPRINTABLE_CODE` could be a code a server sent.
 
 **Why:** the first draft of one conversion deleted every catch-all, reading "returns a `Result`" as
 "never throws". Review found a bug would then leave no record and could never raise the alert. A
