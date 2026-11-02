@@ -14,6 +14,8 @@
 # - a literal hidden character (no-break space, zero-width, bidirectional control, line separator);
 # - any word listed in .git/info/forbidden-words (one per line, case-insensitive), a local list of
 #   names that must never appear in this public repository. The list itself is never committed.
+# On success it prints the heading of every rule ID the added lines cite, since a real ID cited in
+# the wrong place passes every check above.
 import pathlib
 import re
 import subprocess
@@ -58,6 +60,7 @@ def index_markdown() -> dict[str, str]:
 
 
 problems: list[str] = []
+cited: set[str] = set()
 
 # Long lines in Markdown, judged only on lines this commit adds; code is the formatter's to wrap.
 # Each file is diffed alone, so its one `+++` header comes before the first hunk: lines are read
@@ -78,6 +81,8 @@ for path in staged_files():
             stripped = text.strip()
             unbreakable = stripped != "" and not re.search(r"\s", stripped)
             exempt = stripped.startswith(("|", "#")) or unbreakable
+            if not ID_DEF.match(text):
+                cited.update(ID_REF.findall(text))
             if len(text) > LIMIT and not exempt:
                 problems.append(f"{path}:{number}: {len(text)} characters (limit {LIMIT})")
             number += 1
@@ -85,7 +90,11 @@ for path in staged_files():
 # Rule IDs across the whole staged tree.
 docs = index_markdown()
 defined: dict[str, str] = {}
+headings: dict[str, str] = {}
 for path, text in docs.items():
+    for line in text.splitlines():
+        if ID_DEF.match(line + " "):
+            headings[line.split(" ")[1]] = line[4:]
     for rule in ID_DEF.findall(text):
         if rule in defined:
             problems.append(f"{rule} defined twice: {defined[rule]} and {path}")
@@ -170,3 +179,9 @@ if problems:
     for p in problems:
         print(f"  {p}", file=sys.stderr)
     sys.exit(1)
+
+shown = sorted(r for r in cited if r in headings)
+if shown:
+    print("pre-commit: the added lines cite (is each the rule meant?):", file=sys.stderr)
+    for rule in shown:
+        print(f"  {headings[rule]}", file=sys.stderr)

@@ -26,4 +26,5 @@ coherent and trustworthy.
   language belongs in the core, not in an appendix.
 - Lines stay under 100 characters (Markdown table rows and lone URLs exempt).
 - Enable the checks once per clone: `git config core.hooksPath .githooks`. The pre-commit hook
-  refuses long lines, duplicated or deleted rule IDs, and references to IDs no chapter defines.
+  refuses long lines, duplicated or deleted rule IDs, and references to IDs no chapter defines,
+  then prints the heading of each rule the added lines cite, to read before the commit is final.
