@@ -179,7 +179,10 @@ Name the tables, routes or files it found and compare them with the set it claim
 directions. Make an ambiguous match fail (assert exactly one match, never `.find`). A floor on the
 count goes after the assertions it protects. A gate that finds no tests to run fails. A
 third-party checker is such a check: its exit status says nothing about what it read, so the gate
-parses its report and compares the files it says it checked with the build's own list.
+parses its report and compares the files it says it checked with the build's own list. A check
+whose evidence is an absence ("not found", "no differences") tells absent from refused: it checks
+the status of every answer, and first reads a subject known to be present, with the same
+credential, as a positive control.
 
 **Why:** zero findings over zero subjects is the same green as zero findings over all of them. A
 floor passed twice while three of four statements went unchecked. A static analyzer given a
@@ -188,7 +191,9 @@ findings whenever it was asked for machine-readable output; a package index upda
 download exited 0, and the install went ahead from stale indexes. In CI, the same green came from
 an approval label that made an end-to-end gate skip its four shards in fifteen seconds and report
 success, and from an advisory job whose steps were all allowed to fail, which reported success for
-two days while dead.
+two days while dead. Review of a probe that compared stored keys with a remote service found it
+never read the HTTP status: an expired token would have answered "not found" for every key, and a
+refused request for the list of options would have read as "no differences", each with exit 0.
 
 **Enforced by:** Administer, in review; Engineer where the gate compares a tool's report with the
 build's file list. Missing Engineer control: a lint rule refusing `.find(` where a check selects
