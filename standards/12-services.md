@@ -290,8 +290,10 @@ What "deadline" means depends on what the call reaches:
   signal fires no further event. Not `AbortSignal.any([caller, AbortSignal.timeout(ms)])` on a
   long-lived caller signal: on Node 24.22.0 and 26.13.0 it kept every attempt's signals alive
   until that attempt's timer fired, long after the attempt ended, and `getEventListeners` showed
-  nothing. 100,000 attempts with 60-second deadlines held about 135 MB after a forced collection;
-  a controller per attempt held 0.1 MB.
+  nothing; on Node 25.2.1 it kept them after the timers fired too. With the caller's signal still
+  referenced, 100,000 attempts with 60-second deadlines held about 80 MB after 60 forced
+  collections (217 MB on 25.2.1, and 182 MB there once every timer had fired); a controller per
+  attempt held 0.2 MB on each.
 - **Databases:** a client-side deadline on acquiring a connection from the pool, where nothing has
   reached the server yet; and a server-side bound on the statement itself (`statement_timeout` and
   `lock_timeout` in Postgres; `SET STATEMENT max_statement_time=N FOR ...` in MariaDB; or the
