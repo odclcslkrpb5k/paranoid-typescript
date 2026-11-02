@@ -129,10 +129,16 @@ a scheduled job — catches what it does not expect in one function whose name s
 find it (for example a `Net` suffix, for "safety net": `handleRequestNet`). It records the throw by
 class name, and a `Panic`'s message (the program's own words, and the only diagnosis of the
 invariant); counts it toward the run's failure limit, raising or feeding an alert (SV-11); and
-never treats it as success.
+never treats it as success. It never records a foreign error's message or the error object, which
+may quote the input that failed, and records its `code` only when that matches
+`^[A-Z][A-Z0-9_]*$`.
 
 **Why:** the first draft of one conversion deleted every catch-all, reading "returns a `Result`" as
-"never throws". Review found a bug would then leave no record and could never raise the alert.
+"never throws". Review found a bug would then leave no record and could never raise the alert. A
+foreign error can carry a secret: a database driver that parses its connection string with
+`new URL()` throws on a password with an unescaped `#`. On Deno 2.9.6 the `TypeError`'s message
+quoted the whole string, password included; on Node 26.13.0 the message was only "Invalid URL",
+but the error carried the string as `input`, and printing the object showed it (DP-6).
 
 **Enforced by:** Engineer — the lint rule in ER-3 permits `catch` only in adapters and in functions
 with the catch-all suffix. Administer that each entry point has one. Missing Engineer control: a
