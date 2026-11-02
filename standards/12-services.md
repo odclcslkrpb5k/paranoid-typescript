@@ -284,7 +284,14 @@ fails on a name the code uses that it lacks.
 What "deadline" means depends on what the call reaches:
 - **HTTP and SDK calls:** a timeout signal per attempt, with the response body read inside the same
   signal and the same adapter `catch` (ER-3). `fetch` resolves when the headers arrive, so a
-  deadline that ends there leaves the body unguarded.
+  deadline that ends there leaves the body unguarded. Build that signal from one `AbortController`
+  per attempt, aborted by the attempt's own timer or by a listener forwarding the caller's abort,
+  and remove both when the attempt ends; check the caller's `aborted` first, since an aborted
+  signal fires no further event. Not `AbortSignal.any([caller, AbortSignal.timeout(ms)])` on a
+  long-lived caller signal: on Node 24.22.0 and 26.13.0 it kept every attempt's signals alive
+  until that attempt's timer fired, long after the attempt ended, and `getEventListeners` showed
+  nothing. 100,000 attempts with 60-second deadlines held about 135 MB after a forced collection;
+  a controller per attempt held 0.1 MB.
 - **Databases:** a client-side deadline on acquiring a connection from the pool, where nothing has
   reached the server yet; and a server-side bound on the statement itself (`statement_timeout` and
   `lock_timeout` in Postgres; `SET STATEMENT max_statement_time=N FOR ...` in MariaDB; or the
@@ -351,10 +358,11 @@ itself proved unbounded, because the monitoring client's sends had no timeout. T
 **Enforced by:** Engineer, partly: the exit-budget test above, or until the single signal exists, a
 contract test that computes the worst case from the configured retry settings and compares it with
 the deployment's grace period (TS-7); and a test against a real database that a lock-blocked write
-is stopped by the server and never commits (TS-2). Missing Engineer control: a lint rule refusing
-a call to `fetch` or a client method without a `signal` argument, outside tests. It would have
-caught the two HTTP adapters, but not the database driver, whose bound is set on the server or in
-the statement, where no call site shows it.
+is stopped by the server and never commits (TS-2). Missing Engineer control: a lint rule refusing a
+call to `fetch` or a client method without a `signal` argument, outside tests. It would have caught
+the two HTTP adapters, but not the database driver, whose bound is set on the server or in the
+statement, where no call site shows it. Lint refuses `AbortSignal.timeout` and `AbortSignal.any` in
+source, and a test asserts an attempt leaves no listener on the caller's signal.
 
 **Example:** [`src/adapters/http.ts`](../examples/src/adapters/http.ts).
 
