@@ -72,15 +72,22 @@ as passed (SH-10), so a hand-run check counts for nothing.
 ### AG-15 (MUST) A hook that guards an agent fails closed.
 A hook that blocks only on one exit code (Claude Code's pre-tool-use hook blocks on 2; any other
 failure lets the call through) has an entry point that catches everything and exits with the
-blocking code, reporting only the error's class. A test feeds it a malformed payload and an
-unreadable file, and each must block.
+blocking code, reporting only the error's class. It parses the payload into the shape it expects
+(BD-1), and a payload that does not fit blocks as well: valid JSON without the field the check
+reads is not a case the check has passed. Its command ends in `|| exit 2`, because some failures
+come before the catch-all runs. A test feeds it a malformed payload, a payload of the wrong shape
+and an unreadable file, and each must block. Whatever the runner does when its timeout ends the
+hook, a hook that can wait keeps a shorter deadline of its own and blocks when it passes.
 
 **Why:** a hook that throws exits 1, and the edit it was meant to check goes through unchecked. A
 malformed payload reached an uncaught `JSON.parse`, and a file the hook could not read did the
-same; each time the guarded edit went ahead.
+same; each time the guarded edit went ahead. A hook that read valid JSON with no
+`tool_input.file_path` string as "a path outside the project" let the edit through. On a runtime
+missing from `PATH` the command exited 127, and on a module that failed to load it exited 1 (Node
+26.13.0 under `sh`), before any catch-all could run; `|| exit 2` turned each into a block.
 
-**Enforced by:** Engineer — the catch-all and its two tests. Keep a way back (AG-14): a bug in a
-fail-closed hook refuses every call it guards.
+**Enforced by:** Engineer — the catch-all, `|| exit 2`, and the three tests. Keep a way back
+(AG-14): a bug in a fail-closed hook refuses every call it guards.
 
 **Prior art:** fail-safe defaults (Saltzer and Schroeder, 1975); ER-5's safety net, pointed the
 other way: a net in front of a gate refuses rather than carries on.
