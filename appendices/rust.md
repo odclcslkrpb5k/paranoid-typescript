@@ -15,9 +15,9 @@ clipboard data from local applications and messages from the network, with a GTK
 a separate process. It plants a bug against each control and asserts the gate fails at that
 control's step, for the reason the control gives. Each setting below was checked on 2026-10-23
 against rustc 1.99.1, clippy 0.1.99, cargo-deny 0.20.2, cargo-mutants 27.1.0 and cargo-fuzz 0.13.2
-on nightly-2026-10-15. Not yet measured, and so not yet written: the panic strategy (`unwind` or
-`abort`) and what it contains, and `overflow-checks` in a release build. Read every item as
-(PROPOSED) until that project has run it for a while. Tool options change between versions; check
+on nightly-2026-10-15; the panic strategy and `overflow-checks` were checked on 2026-11-02 against
+rustc 1.99.1 and tokio 1.54.1. Read every item as (PROPOSED) until that project has run it for a
+while. Tool options change between versions; check
 each against the version you install.
 
 ## Panics: a hazard the core never meets
@@ -57,6 +57,33 @@ same decoder in safe Rust panics instead. In ladder order:
   0.1.99, `usize::from(n) + 1` with `n: u8` is not flagged, since it cannot overflow, while
   `usize::from(n) + p.len()` is. A plant for it needs two unbounded operands; the first one tried
   used the bounded form and was caught only by a test, as a logic bug.
+- **Engineer** overflow into a panic in the release build too (ER-7). A release build wraps
+  integer overflow by default: `200u8 + 100` gave 44 and exit 0. With `overflow-checks = true` in
+  the root manifest's `[profile.release]` the same build panicked with exit 101, inside a
+  dependency as well, since a profile reaches every crate in the build. The lints keep a decoder
+  from leaning on it; everywhere else it turns a wrong number into a panic that can be contained.
+- **Protect** what the lints miss with `panic = "unwind"`, and decide at each boundary whether a
+  panic costs one stranger's work (ER-5) or the process (ER-9). Measured in a release build:
+  - A panic on a spawned thread ended only that thread. The process carried on and exited 0, and
+    the message on stderr was the only trace. Every thread is joined or watched, and a `join()`
+    that returns `Err` ends the process non-zero; a thread nobody joins loses its work silently.
+  - A `tokio::spawn` task's panic stayed in the task: awaiting its handle gave a `JoinError` whose
+    `is_panic()` was true, and a task never awaited panicked without stopping the runtime. Every
+    handle is awaited, and a panic is recorded and counted like any caught failure (ER-5).
+  - A `std::sync::Mutex` held across a panic is poisoned: the next `lock()` returned `Err`, whose
+    `into_inner()` hands over the data as the panic left it. Taking it resumes in an unknown state
+    (ER-9), so a poisoned lock ends whatever owns it.
+  - Containment is not total. A `Drop` that panicked while another panic unwound aborted the
+    process (exit 134) even inside `catch_unwind`.
+  - Under `panic = "abort"` the same thread's panic aborted the whole process (exit 134), and
+    `catch_unwind` caught nothing.
+- **Prove the profile the release runs (CP-3).** Profiles count only in the workspace's root
+  manifest. On cargo 1.99.1 a member's `[profile.release]` with `overflow-checks = true` built a
+  release that wrapped, with nothing but a warning ("profiles for the non root package will be
+  ignored"). Tests cannot show the panic strategy either: `cargo test --release` built its tests
+  to unwind under `panic = "abort"`, and a test that caught a panic passed. So the gate fails on
+  that warning, and runs release-built fixtures that overflow and that panic on a thread,
+  asserting the exit status each must give.
 
 ## Toolchain (chapter 01)
 
