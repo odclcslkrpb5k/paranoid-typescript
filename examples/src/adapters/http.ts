@@ -42,21 +42,42 @@ export async function getJson<S extends v.GenericSchema>(
     return panic("getJson: timeoutMs must be a whole number of milliseconds, at least 1");
   }
   if (options.timeoutMs > MAX_TIMER_MS) return panic("getJson: timeoutMs exceeds a timer's range");
-  const timeout = AbortSignal.timeout(options.timeoutMs);
-  const signal =
-    options.signal === undefined ? timeout : AbortSignal.any([timeout, options.signal]);
+  const caller = options.signal;
+  // An aborted signal fires no further event, so a listener added now would never run.
+  if (caller?.aborted === true) return err({ kind: "aborted" });
   const doFetch = options.fetch ?? globalThis.fetch;
+
+  // One controller per attempt, aborted by the caller's signal or by this attempt's own timer, and
+  // both removed when the attempt ends. `AbortSignal.any([caller, AbortSignal.timeout(ms)])` on a
+  // long-lived caller keeps every attempt's signals alive until its timer fires, long after the
+  // attempt has ended (SV-20).
+  const attempt = new AbortController();
+  let timedOut = false;
+  const forward = (): void => {
+    attempt.abort(caller?.reason);
+  };
+  caller?.addEventListener("abort", forward, { once: true });
+  const timer = setTimeout(() => {
+    timedOut = true;
+    attempt.abort(new DOMException("the attempt's deadline passed", "TimeoutError"));
+  }, options.timeoutMs);
 
   let status: number;
   let text: string;
   try {
-    const response = await doFetch(url, { signal, headers: { accept: "application/json" } });
+    const response = await doFetch(url, {
+      signal: attempt.signal,
+      headers: { accept: "application/json" },
+    });
     status = response.status;
     // Read inside the same `try` and under the same signal: `fetch` resolves once the headers
     // arrive, so a connection that drops mid-body fails here, not in the caller.
     text = await response.text();
   } catch (error: unknown) {
-    return err(classify(error, timeout, options.signal));
+    return err(classify(error, timedOut, caller));
+  } finally {
+    clearTimeout(timer);
+    caller?.removeEventListener("abort", forward);
   }
 
   if (status < 200 || status > 299) return err({ kind: "status", status });
@@ -64,14 +85,14 @@ export async function getJson<S extends v.GenericSchema>(
 }
 
 /**
- * Sorts a thrown value. Which signal fired is read from the signals themselves, not from the
- * error: `fetch` rejects with the signal's reason, which for a caller's abort can be any value the
+ * Sorts a thrown value. Which abort fired is read from the attempt's own record and the caller's
+ * signal, not from the error: `fetch` rejects with the signal's reason, which for a caller's abort can be any value the
  * caller chose. A network failure is a `TypeError` carrying a `cause`; a `TypeError` without one
  * comes from `fetch` refusing the request itself (credentials in the URL, a bad header), which is
  * a bug in this program and so "unexpected", never an outage.
  */
-function classify(error: unknown, timeout: AbortSignal, caller?: AbortSignal): HttpError {
-  if (timeout.aborted) return { kind: "timeout" };
+function classify(error: unknown, timedOut: boolean, caller?: AbortSignal): HttpError {
+  if (timedOut) return { kind: "timeout" };
   if (caller?.aborted === true) return { kind: "aborted" };
   if (error instanceof TypeError && error.cause !== undefined) return { kind: "network" };
   return { kind: "unexpected", name: error instanceof Error ? error.name : typeof error };

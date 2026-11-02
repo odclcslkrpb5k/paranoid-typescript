@@ -79,11 +79,21 @@ const testImports = {
   patterns: [
     {
       regex:
-        "^(?!\\.{1,2}/|valibot$|fast-check$|@typescript-eslint/rule-tester$|eslint$|node:(?:test|assert/strict|http|timers/promises|child_process|fs|os|path)$)",
+        "^(?!\\.{1,2}/|valibot$|fast-check$|@typescript-eslint/rule-tester$|eslint$|node:(?:test|assert/strict|events|http|timers/promises|child_process|fs|os|path)$)",
       message: "Tests import the test runner, assertions, fakes and the code under test.",
     },
   ],
 };
+
+/**
+ * A per-attempt deadline built from these, combined with a long-lived caller's signal, keeps every
+ * attempt's signals alive until its timer fires (SV-20). One AbortController per attempt instead.
+ */
+const abortSignals = ["timeout", "any"].map((property) => ({
+  object: "AbortSignal",
+  property,
+  message: "Use one AbortController per attempt, cleared when it ends (SV-20).",
+}));
 
 export default tseslint.config(
   // Fixtures that exist to fail a check are left out; the ones that should be clean are linted.
@@ -167,6 +177,7 @@ export default tseslint.config(
           property: "stringify",
           message: "JSON.stringify throws on a bigint or a cycle; serialize in an adapter (ER-4).",
         },
+        ...abortSignals,
       ],
       "no-restricted-globals": ["error", ...restrictedGlobals],
       "no-restricted-imports": ["error", domainImports],
@@ -184,7 +195,7 @@ export default tseslint.config(
     files: ["src/adapters/**/*.ts"],
     rules: {
       "no-restricted-syntax": ["error", throwing.reject],
-      "no-restricted-properties": "off",
+      "no-restricted-properties": ["error", ...abortSignals],
       "no-restricted-globals": "off",
       "no-restricted-imports": "off",
     },

@@ -3,6 +3,7 @@
  * failure a server cannot produce on demand: a body that starts and then breaks.
  */
 import assert from "node:assert/strict";
+import { getEventListeners } from "node:events";
 import { createServer, type Server } from "node:http";
 import { after, before, test } from "node:test";
 import * as v from "valibot";
@@ -165,6 +166,18 @@ test("an abort during the body read is reported as aborted", async () => {
   }, 20);
   const options = { timeoutMs: 2000, signal: controller.signal };
   assert.deepEqual(fails(await getJson(at("/slow-body"), Thing, options)), { kind: "aborted" });
+});
+
+test("an attempt leaves no listener on the caller's signal, however it ends (SV-20)", async () => {
+  // A caller's signal can outlive thousands of attempts; each must take back what it added.
+  const controller = new AbortController();
+  const signal = controller.signal;
+  succeeds(await getJson(at("/thing"), Thing, { timeoutMs: 2000, signal }));
+  fails(await getJson(at("/slow-headers"), Thing, { timeoutMs: 100, signal }));
+  fails(await getJson(at("/slow-body"), Thing, { timeoutMs: 100, signal }));
+  const rejecting = { timeoutMs: 2000, signal, fetch: rejectingFetch(new TypeError("x")) };
+  fails(await getJson(at("/thing"), Thing, rejecting));
+  assert.equal(getEventListeners(signal, "abort").length, 0);
 });
 
 test("a timeout the timer cannot hold is a bug in the caller, and panics", async () => {
