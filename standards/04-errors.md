@@ -158,7 +158,10 @@ were set before its stack was first read began `DbError: second`; one whose mess
 **Enforced by:** Engineer — the lint rule in ER-3 permits `catch` only in adapters and in functions
 with the catch-all suffix. Administer that each entry point has one. Missing Engineer control: a
 test that lists the entry points (routes, queue loops, scheduled jobs) and fails on one whose call
-into a port is not inside a catch-all.
+into a port is not inside a catch-all. For the message, Engineer in part: `no-restricted-syntax`
+with `AssignmentExpression > MemberExpression.left:matches([property.name='message'],
+[property.value='message'])` refused `e.message = ` and `e["message"] = ` on ESLint 10.13.0 and
+passed a read; it does not see `Object.assign`.
 
 ### ER-6 (MUST NOT) Turn a failure into success.
 No `catch` that neither records nor returns the failure; no unawaited promise (LN-4); no path that
