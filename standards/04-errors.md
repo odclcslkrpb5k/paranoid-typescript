@@ -131,16 +131,22 @@ class name, and a `Panic`'s message (the program's own words, and the only diagn
 invariant); counts it toward the run's failure limit, raising or feeding an alert (SV-11); and
 never treats it as success. It never records a foreign error's message or the error object, which
 may quote the input that failed, and records its `code` only when that matches
-`^[A-Z][A-Z0-9_]{0,63}$`. Without the bound, an error body written wholly in capitals passes as a
+`^[A-Z][A-Z0-9_]{0,63}$`, or a SQL state only when it matches `^[0-9A-Z]{5}$` (most begin with a
+digit: `23505`, `42P01`). Without the bound, an error body written wholly in capitals passes as a
 code. A code withheld is recorded as a word the pattern refuses, such as `unprintable`; a
-placeholder like `UNPRINTABLE_CODE` could be a code a server sent.
+placeholder like `UNPRINTABLE_CODE` could be a code a server sent. It may record the first stack
+frame, to find the program's own `TypeError` without its message, but only by skipping the stack's
+header (`name: message`, as many lines as that holds), and records none when the stack does not
+begin with that header: a message can hold a line that looks like a frame.
 
 **Why:** the first draft of one conversion deleted every catch-all, reading "returns a `Result`" as
 "never throws". Review found a bug would then leave no record and could never raise the alert. A
 foreign error can carry a secret: a database driver that parses its connection string with
 `new URL()` throws on a password with an unescaped `#`. On Deno 2.9.6 the `TypeError`'s message
 quoted the whole string, password included; on Node 26.13.0 the message was only "Invalid URL",
-but the error carried the string as `input`, and printing the object showed it (DP-6).
+but the error carried the string as `input`, and printing the object showed it (DP-6). A message
+of `"bad value: hunter2\n    at secret (hunter2:1:1)"` made the first line of its stack that begins
+`at` the forged one, on Node 26.13.0 and Deno 2.9.6.
 
 **Enforced by:** Engineer — the lint rule in ER-3 permits `catch` only in adapters and in functions
 with the catch-all suffix. Administer that each entry point has one. Missing Engineer control: a
