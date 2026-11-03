@@ -187,7 +187,18 @@ Where another system offers only text, match it exactly, write down the dependen
 owner for a code. Checking the message as well as the code, to stay safe against an older version
 of the other side, is allowed and recorded.
 
-**Why:** messages get reworded; codes are a contract.
+A driver's code is the driver's own naming, and it can be missing: branch on the server's number
+where the driver may not know it, and take the server's own marks (a SQL state) as the sign that
+the server answered. A failure counts as "no answer", to be retried, only when its code is on a
+list of transport codes; any other code is passed on as a failure or a bug. That a code is
+printable (ER-5) bounds what is recorded, not what the code means.
+
+**Why:** messages get reworded; codes are a contract. Against MariaDB 10.5.23, mysql2 3.11.5 left
+`code` undefined on a statement stopped by `max_statement_time`, with errno 1969 and SQL state
+70100; a server error it knew carried both a code and a SQL state, and a refused connection
+(`ECONNREFUSED`) or an unknown host (`ENOTFOUND`) had a code and no SQL state. So did a configured
+port of 70000: `ERR_SOCKET_BAD_PORT`, a `RangeError` from Node itself. An adapter that read "a
+code and no SQL state" as "no answer" would retry a configuration error as an outage.
 
 **Enforced by:** Administer. SV-9 is the server side: a registry of codes, tested. Missing Engineer
 control: `no-restricted-syntax` refusing a comparison, `includes`, `startsWith` or regex test on an
