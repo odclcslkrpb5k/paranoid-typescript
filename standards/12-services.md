@@ -7,10 +7,21 @@ that answers requests. And how it treats the other systems it calls.
 
 ### SV-1 (MUST) Read and validate all configuration at boot, and refuse to start on anything missing or malformed, naming every problem at once.
 One schema for the whole configuration (BD-1), parsed before anything else runs. A mode or flag is
-one of its exact values.
+one of its exact values. A value is checked for what its use will need, and a refusal names the
+setting, never the value:
+- a token sent in a header is visible ASCII with no space (`/^[\x21-\x7e]+$/`);
+- a base URL that routes are appended to is compared whole: its `href` equals `origin + pathname`,
+  so it holds no credentials, query or fragment.
 
 **Why:** a misconfigured deployment should stop, not degrade. A silent default is found weeks
-later. Naming every problem at once saves a deploy-fix-deploy loop per problem.
+later. Naming every problem at once saves a deploy-fix-deploy loop per problem. A value that
+fails late fails worse. On Node 26.13.0 and Deno 2.9.6, a token holding a newline, a NUL or an
+inner carriage return made `new Request()` throw a `TypeError` that quoted the whole header,
+token included; inside an adapter it read as an outage, and outside one the token went to
+whatever printed the error (ER-5). A trailing carriage return was dropped silently. A base URL of
+`https://host?` or `https://host#` has pathname `/` and an empty search and hash, yet its `href`
+keeps the `?` or `#`, so every route appended to it landed in the query or the fragment;
+`https://user:pw@host/` passed the same pathname check.
 
 **Enforced by:** Engineer — the configuration parser, with tests.
 
