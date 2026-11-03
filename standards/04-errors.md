@@ -136,8 +136,9 @@ digit: `23505`, `42P01`). Without the bound, an error body written wholly in cap
 code. A code withheld is recorded as a word the pattern refuses, such as `unprintable`; a
 placeholder like `UNPRINTABLE_CODE` could be a code a server sent. It may record the first stack
 frame, to find the program's own `TypeError` without its message, but only by skipping the stack's
-header (`name: message`, as many lines as that holds), and records none when the stack does not
-begin with that header: a message can hold a line that looks like a frame.
+header (`name: message`, as many lines as that holds, or the name alone when the message is empty),
+and records none when the stack does not begin with that header: a message can hold a line that
+looks like a frame.
 
 **Why:** the first draft of one conversion deleted every catch-all, reading "returns a `Result`" as
 "never throws". Review found a bug would then leave no record and could never raise the alert. A
