@@ -292,12 +292,20 @@ Record the member paths of real responses — names only, never values — and f
 a path outside that set, naming the path. Merge each recording into the last. A parser of a
 document a vendor returns (HTML, PDF, CSV, XML) has at least one fixture shaped from a real one,
 values masked or invented but structure kept: a published sample is a guess. A fixture meant to
-check types holds every list non-empty and every nullable member a value, asserted.
+check types holds every list non-empty and every nullable member a value, asserted. That proves
+types, not nullability, so a second pass nulls each member the owner may send as null, one at a
+time, in what the real service reads: wherever it still answers, the client must read the same
+answer. Nulling some member must also change the answer, or the fixture never reached what it was
+written for.
 
 **Why:** a fake that carries a field the service never sends passes every test while production
 reads nothing. One consumer's fakes still carried fields an upstream service had stopped sending;
 in production it would have flagged every record as missing data. A parser tested only on a
-vendor's sample letter matched no real letter for six days.
+vendor's sample letter matched no real letter for six days. A review made two members non-null in
+a typed client that the server sends as null, one of them null on most records, and the
+client-against-server test still passed, since its fixture filled every member; production would
+have refused every such record. The nulling pass failed on each of five nullability mutants, and
+its guard caught a fixture deliberately routed to the wrong query.
 
 **Enforced by:** Engineer — the shape check refuses a non-conforming fake. Higher, where possible:
 the service that owns the contract publishes the recorded shape with its client (RP-5).
