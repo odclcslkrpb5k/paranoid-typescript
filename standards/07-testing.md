@@ -183,7 +183,10 @@ parses its report and compares the files it says it checked with the build's own
 whose evidence is an absence ("not found", "no differences") tells absent from refused. It names
 the answers that mean absent (a 404, an empty list in a 200) and fails on every other answer,
 rather than listing the refusals; and it first reads a subject known to be present, with the same
-credential, as a positive control.
+credential, as a positive control. Even a true "empty" holds only for a key known to exist (a
+collection under a record that does not exist can answer empty too), only under the route's own
+filter, and only as of the source's freshness (a replica lags); a consumer that acts on "none"
+checks all three.
 
 **Why:** zero findings over zero subjects is the same green as zero findings over all of them. A
 floor passed twice while three of four statements went unchecked. A static analyzer given a
@@ -197,7 +200,8 @@ never read the HTTP status: an expired token would have answered "not found" for
 refused request for the list of options would have read as "no differences", each with exit 0. A
 list of refusals (401, 403, 5xx) written to fix it still missed three of the client's own answers:
 status 0 when the service was unreachable or timed out after retries, a 429 after its retries ran
-out, and a proxy's page in place of the body.
+out, and a proxy's page in place of the body. In the same client, a route's "open" meant one
+status only, so its empty answer said nothing about records in the others.
 
 **Enforced by:** Administer, in review; Engineer where the gate compares a tool's report with the
 build's file list. Missing Engineer control: a lint rule refusing `.find(` where a check selects
