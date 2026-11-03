@@ -138,7 +138,11 @@ placeholder like `UNPRINTABLE_CODE` could be a code a server sent. It may record
 frame, to find the program's own `TypeError` without its message, but only by skipping the stack's
 header (`name: message`, as many lines as that holds, or the name alone when the message is empty),
 and records none when the stack does not begin with that header: a message can hold a line that
-looks like a frame.
+looks like a frame. The header is written when `.stack` is first read, which is what lets it match
+an error whose name or message a driver set after construction; a test pins both shapes, so a
+runtime that writes it earlier fails the test instead of dropping those frames. A message changed
+after `.stack` was read leaves the old message's lines under a header that still matches, so code
+never assigns `message` to an error once its stack has been read.
 
 **Why:** the first draft of one conversion deleted every catch-all, reading "returns a `Result`" as
 "never throws". Review found a bug would then leave no record and could never raise the alert. A
@@ -147,7 +151,9 @@ foreign error can carry a secret: a database driver that parses its connection s
 quoted the whole string, password included; on Node 26.13.0 the message was only "Invalid URL",
 but the error carried the string as `input`, and printing the object showed it (DP-6). A message
 of `"bad value: hunter2\n    at secret (hunter2:1:1)"` made the first line of its stack that begins
-`at` the forged one, on Node 26.13.0 and Deno 2.9.6.
+`at` the forged one, on Node 26.13.0 and Deno 2.9.6. On both, an error whose name and message
+were set before its stack was first read began `DbError: second`; one whose message was cut to
+`"x"` after a read kept the forged frame under the header `Error: x`.
 
 **Enforced by:** Engineer — the lint rule in ER-3 permits `catch` only in adapters and in functions
 with the catch-all suffix. Administer that each entry point has one. Missing Engineer control: a
