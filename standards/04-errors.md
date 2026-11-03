@@ -164,13 +164,23 @@ done means for that work.
 A regex group the pattern requires is checked, and a missing one is a `panic()` or the function's
 own "unparseable" result, never `?? 0`.
 
+A guard that sorts another system's values into "blocks" and "permits" has the same default
+hidden in its form: an allow-list of blocking statuses lets a status added later permit, and a
+deny-list of permitting ones blocks it. Where the source's full set can be read (an enumeration
+type, a lookup table, a published schema), a test pins the two lists against it, so a new value
+fails the test before it falls either way. Where it cannot, the guard fails closed, or the code
+says which way it fails and why, at the list.
+
 **Why:** a default turns the impossible into a wrong value that passes, and is often dead code that
-a reader still trusts.
+a reader still trusts. A guard that refused a write while some order was in a blocking status
+listed those statuses (`status in (1, 2, 3, 5)`), so its empty answer would permit the write for
+an order in any status the source added later.
 
 **Enforced by:** Administer, in review. `noUncheckedIndexedAccess` (CP-1) forces the check; nothing
 forces its answer to be honest. Missing Engineer control: `no-restricted-syntax` refusing `??` or
 `||` with a literal right-hand side on an indexed read or a regex group, each exception justified
-in place.
+in place. For a guard over another system's values, Engineer: the test pinning its lists against
+the source's set.
 
 ### ER-8 (MUST) Branch on error codes, never on message text.
 Where another system offers only text, match it exactly, write down the dependency, and ask its
