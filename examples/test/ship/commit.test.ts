@@ -10,6 +10,7 @@ import path from "node:path";
 import { test } from "node:test";
 import {
   copyScripts,
+  DOCKER_STEP,
   heldLocally,
   HOOKS,
   LEAK,
@@ -193,7 +194,10 @@ test("only the latest run of each step counts, and only as the command it names"
       "test",
       (s) => {
         s.gate();
-        s.run("timed", ["test", ...SUITE.slice(0, -1), "check-db"]);
+        const other = [...DOCKER_STEP.slice(0, -1), "check-db"];
+        assert.notEqual(other.join(" "), SUITE.join(" "));
+        // A row that passed: refused only because its command is not the suite's.
+        assert.equal(s.run("timed", ["test", ...other]).code, 0);
       },
     ],
     [

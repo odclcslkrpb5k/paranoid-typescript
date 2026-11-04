@@ -16,7 +16,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { Scratch, SHIP, SUITE } from "./scratch.ts";
+import { DOCKER_STEP, Scratch, SHIP } from "./scratch.ts";
 import "../support/leaks.ts";
 import { must } from "../support/assert.ts";
 
@@ -163,22 +163,26 @@ test("a step is recorded as the file the kernel ran, and run as that file", (t) 
   assert.equal(last()[4], `${realpathSync(s.work)}/-/ok`);
 
   // Nothing from the environment runs in the command's place: an exported function named like it,
-  // one named `command`, or one a BASH_ENV file defines. The fake docker fails the suite; any of
-  // them would have passed.
+  // one named `command`, or one a BASH_ENV file defines. The fake docker fails the step; any of
+  // them would have passed, as it does in a shell that lets it (the control).
   writeFileSync(path.join(s.dir, "env.sh"), "command() { return 0; }\ndocker() { return 0; }\n");
+  const control = s.exec("bash", ["-c", '"$@"', "bash", ...DOCKER_STEP], {
+    extra: { "BASH_FUNC_docker%%": "() {  return 0; }", FAIL: "check" },
+  });
+  assert.equal(control.code, 0, "a function named like the step does shadow it in a plain shell");
   for (const env of [
     { "BASH_FUNC_docker%%": "() {  return 0; }" },
     { "BASH_FUNC_command%%": "() {  return 0; }" },
     { BASH_ENV: path.join(s.dir, "env.sh") },
   ]) {
-    const shadowed = s.run("timed", ["test", ...SUITE], { FAIL: "check", ...env });
+    const shadowed = s.run("timed", ["test", ...DOCKER_STEP], { FAIL: "check", ...env });
     assert.equal(shadowed.code, 1, JSON.stringify(env));
     assert.deepEqual(last().slice(0, 2), ["test", "1"]);
   }
   // Run as `bash timed`, without the shebang's -p, a function named like the step still does not
   // run in its place (one named `command` would: -p is what stops that).
   writeFileSync(path.join(s.dir, "docker-only.sh"), "docker() { return 0; }\n");
-  const unprivileged = s.exec("bash", [path.join(s.work, SHIP, "timed"), "test", ...SUITE], {
+  const unprivileged = s.exec("bash", [path.join(s.work, SHIP, "timed"), "test", ...DOCKER_STEP], {
     extra: { BASH_ENV: path.join(s.dir, "docker-only.sh"), FAIL: "check" },
   });
   assert.equal(unprivileged.code, 1, unprivileged.stderr);

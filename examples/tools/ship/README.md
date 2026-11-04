@@ -51,7 +51,9 @@ without them), and set what is the project's own:
 - the image `run-node` starts (`app:dev`), whose working directory is `/repo` and which holds the
   project's `node_modules` there;
 - the suite's command, `docker compose run --build --rm check`, written in `steps`, in
-  `commit-and-push` and in `test/ship/scratch.ts`;
+  `commit-and-push` and in `test/ship/scratch.ts` as `SUITE`. Leave `DOCKER_STEP` beside it as it
+  is: the tests that shadow a command with a shell function, or vary its words, use that, since
+  neither works on a suite that is a path;
 - `allowed-paths` and `required-steps`, for the project's layout and its rehearsals;
 - `secrets_allow.txt`, the published development passwords, if any, which production refuses
   (SV-3); and `tools/secret-hashes.txt`, the digests of secrets with no shape. Both are read from
@@ -59,6 +61,10 @@ without them), and set what is the project's own:
 
 The suite runs `test/ship/` with `SHIP_NODE=node`, since the check container has Node and no
 Docker. In these examples that is `docker compose run --build --rm -e SHIP_NODE=node check`.
+
+A copied test keeps none of the verdicts its mutants had here (TS-5): the tests passing after the
+copy does not show that they still catch anything. Plant again the defects each guard's test was
+written for, with `mutate`, before trusting them.
 
 ## Mutation testing
 
@@ -75,6 +81,9 @@ never answered, an equivalence whose files have changed, a survivor whose code h
 
 - `.dockerignore` must hold plain names: the gate cannot read a pattern, so it fails on one rather
   than excusing anything.
+- A name in `.dockerignore` excuses every ignored file under it, so it names only what no test
+  reads, whether through the image or through a mount such as `run-node`'s. The gate cannot tell
+  which those are.
 - The comment check catches a fixed set of phrases about the code's history; it cannot judge a
   comment that will stop being true. That re-read stays with review.
 - `mutate` type-checks TypeScript with `tsc` over `tsconfig.json`'s program, so a file outside that

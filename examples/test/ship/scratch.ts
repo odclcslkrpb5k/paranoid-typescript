@@ -32,6 +32,12 @@ export const SHIP = "tools/ship";
 export const GATE = `${SHIP}/gate`;
 /** The suite's command, as the ship runs it and as commit-and-push requires it by default. */
 export const SUITE = ["docker", "compose", "run", "--build", "--rm", "check"];
+/**
+ * A command the fake docker answers, named by a bare word a shell function could shadow: for the
+ * tests that vary a command's words or shadow it, which SUITE cannot serve once a project sets its
+ * own suite. A suite that is a path, `tools/check`, made both kinds pass with their guards removed.
+ */
+export const DOCKER_STEP = ["docker", "compose", "run", "--build", "--rm", "check"];
 
 export interface Out {
   readonly code: number | null;
