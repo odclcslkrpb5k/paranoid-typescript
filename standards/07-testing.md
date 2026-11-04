@@ -191,17 +191,21 @@ checks all three.
 **Why:** zero findings over zero subjects is the same green as zero findings over all of them. A
 floor passed twice while three of four statements went unchecked. A static analyzer given a
 directory where it expected a project file checked nothing and exited 0; another exited 0 with
-findings whenever it was asked for machine-readable output; a package index update that failed to
-download exited 0, and the install went ahead from stale indexes. In CI, the same green came from
-an approval label that made an end-to-end gate skip its four shards in fifteen seconds and report
-success, and from an advisory job whose steps were all allowed to fail, which reported success for
-two days while dead. Review of a probe that compared stored keys with a remote service found it
-never read the HTTP status: an expired token would have answered "not found" for every key, and a
-refused request for the list of options would have read as "no differences", each with exit 0. A
-list of refusals (401, 403, 5xx) written to fix it still missed three of the client's own answers:
-status 0 when the service was unreachable or timed out after retries, a 429 after its retries ran
-out, and a proxy's page in place of the body. In the same client, a route's "open" meant one
-status only, so its empty answer said nothing about records in the others.
+findings whenever it was asked for machine-readable output; a template checker given `--strict`
+before its file pattern took the pattern as the flag's value and checked its default directory
+instead, which held none of the project's files, and exited 0 (lit-analyzer 2.0.3), while the
+findings its strict mode adds were warnings that exited 0 unless `--maxWarnings 0` was passed; a
+package index update that failed to download exited 0, and the install went ahead from stale
+indexes. In CI, the same green came from an approval label that made an end-to-end gate skip its
+four shards in fifteen seconds and report success, and from an advisory job whose steps were all
+allowed to fail, which reported success for two days while dead. Review of a probe that compared
+stored keys with a remote service found it never read the HTTP status: an expired token would have
+answered "not found" for every key, and a refused request for the list of options would have read
+as "no differences", each with exit 0. A list of refusals (401, 403, 5xx) written to fix it still
+missed three of the client's own answers: status 0 when the service was unreachable or timed out
+after retries, a 429 after its retries ran out, and a proxy's page in place of the body. In the
+same client, a route's "open" meant one status only, so its empty answer said nothing about records
+in the others.
 
 **Enforced by:** Administer, in review; Engineer where the gate compares a tool's report with the
 build's file list. Missing Engineer control: a lint rule refusing `.find(` where a check selects
