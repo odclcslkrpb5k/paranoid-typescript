@@ -128,7 +128,13 @@ one) names the lockfile or vendored file among them, so an upgrade runs it again
 answered only by a test that kills it or by a record of its equivalence; rewriting or removing the
 code it mutated answers nothing. A tool that can no longer apply a survivor keeps it due until
 someone records what became of that code, and that record lapses at the mutant's next verdict, so
-a survivor that returns and survives again is due again. A mutant must be able to fail the
+a survivor that returns and survives again is due again. A verdict holds only where the mutant
+ran: a test copied into another project, or adapted to it, is judged again by planting its source's
+mutants there. Two copied tests of a ship tool passed in a project whose suite was a path to a
+script, and caught neither defect they were written for. One varied the suite command's words,
+which turned the path into a command that could not run, so the step failed whether or not the
+guard held; the other shadowed the command with a shell function, which cannot shadow a path.
+A mutant must be able to fail the
 test at all: a locale fix tested in a harness that already clears the locale, or a "connection
 refused" path aimed at a port the runtime refuses before connecting, proves nothing; nor does a
 test runner started from inside a test to prove a check fails, if it inherits the parent's
