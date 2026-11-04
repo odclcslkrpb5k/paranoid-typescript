@@ -90,6 +90,13 @@ its file, and exited 0. On Deno 2.9.6 a workspace member's own `compilerOptions`
 its files, so a vendored package kept as a member could switch a check off; only a member file the
 root's code imported was still reported.
 
+A runtime's own defaults can make a fixture prove nothing either way. On Deno 2.9.5 and 2.9.6,
+`noUncheckedSideEffectImports` is ignored, with only a warning ("The following options were
+ignored"), and its module graph refuses a missing side-effect import (TS2307) with the option on
+or off; `noImplicitOverride` is on unless set to `false`, so its fixture failed with the option
+left out. The gate fails on that warning, and a fixture's "off" run sets the option to `false`
+rather than leaving it out.
+
 **Why:** the settings file can claim a protection the checker does not give. An `extends` chain can
 override a flag, a later edit can drop one, and a runtime with a built-in checker can ignore an
 option it does not know (TC-1). Each passes the check while the protection is gone; only a fixture
