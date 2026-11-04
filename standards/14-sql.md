@@ -222,3 +222,32 @@ read (TS-5).
 
 **Prior art:** the Postgres manual's caution that `for update` with `order by` and `limit` under
 READ COMMITTED can return rows out of order, or fewer than the limit.
+
+### SQ-13 (SHOULD) Where ids are handled in plpgsql, each kind of id is its own composite type, never a domain. (PROPOSED)
+BD-5's brands stop at the database. Where business logic lives in plpgsql, one function can pass
+its `p_user_id` into another's `p_subject_id`, and no TypeScript type sees the call. A
+single-field composite (`create type subject_ref as (id integer)`) gives each kind a type the
+call must match; a domain does not. Call sites never pass an untyped `row(...)`, which resolves to
+whatever the call needs, as a bare literal does. The costs come with it: a driver returns the
+composite as text, a parameter is sent in the composite's text form, and JSON nests the id.
+
+Where that migration is not yet proportionate, an internal call with more than one id argument
+uses named notation, which a catalog test enforces, so a crossed argument is at least visible.
+
+**Why:** a domain coerces through its base type. On PostgreSQL 18.6, a function taking a
+`subject_id` domain accepted a `user_id` domain value, a plain integer, and a plpgsql variable
+declared `user_id`, and `plpgsql_check` reported nothing; a rule saying "use domains for id kinds"
+would be a control that looks like one and is not. With composites, passing a `user_ref` failed
+with 42883, and `plpgsql_check_function` reported it without running the function
+(`error:42883:1:RETURN:function c_takes(t_user_ref) does not exist`, plpgsql_check 2.10.16). A
+composite primary key and foreign key worked, and the foreign key refused a missing row (23503).
+An untyped `row(5)` was accepted as either kind. postgres.js 3.4.9 returned the column as the
+string `"(1)"` and refused a bare `5` as the parameter (22P02); `row_to_json` wrote `{"id":5}`.
+Index size, plan quality and the migration of an existing schema are not measured.
+
+**Enforced by:** Engineer — `plpgsql_check` (SQ-1) refuses a wrong-kind call before it runs.
+Missing Engineer control: a check refusing an untyped `row(` constructor at a call site. A single
+sequence shared by every id kind, so a wrong-kind id matches no row, is Protect only.
+
+**Prior art:** the newtype of Haskell and Rust, and Ada's derived types: the same representation
+under a type that does not convert by itself.
