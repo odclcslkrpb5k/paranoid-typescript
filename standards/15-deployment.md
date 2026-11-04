@@ -91,8 +91,8 @@ runs unchanged under the rehearsal keeps the rehearsal honest.
 
 ### DE-5 (MUST) Check the image before assuming anything about the container.
 Which user it runs as (`docker run --rm --entrypoint id <image> -u`), its entrypoint (some base
-images already run an init such as `tini`; do not add `init: true` on top), and the permissions the
-runtime command grants (TS-7).
+images already run an init such as `tini`; do not add `init: true` on top; others start the service
+as PID 1, DE-16), and the permissions the runtime command grants (TS-7).
 
 **Why:** one service added a redundant init, and assumed its container ran as uid 1000 when the
 base image's user was another uid; the assumption reached a second team before it was corrected.
@@ -263,3 +263,24 @@ proxy retries only requests that never connected. With these timings held, one s
 every one of about 55,000 requests under load through every roll and put-back of its rehearsal.
 
 **Enforced by:** Engineer — the timing test, and the rehearsal under load (DE-9).
+
+### DE-16 (MUST) The service's own process is never PID 1 in its container: an init runs first.
+`init: true` on the service, or an image whose entrypoint is an init such as `tini`. Check which
+whenever the base image changes (DE-5), since the entrypoint comes with the image. A SIGTERM
+handler is no substitute: it lets the process stop when Docker asks, but nothing else in the
+container can signal it.
+
+**Why:** the kernel gives PID 1 no default action for a signal it does not handle. A service moved
+from a base image whose entrypoint was `tini` to `node:26.13.0-slim`, whose entrypoint runs node in
+its own place, and node became PID 1. On Docker 29.8.1 every stop then waited out the ten-second
+grace and was killed (10.2 s, exit 137; with `--init`, 0.18 s and exit 143), so every release's
+outage grew. The healthcheck restarted a hung server with `kill -s 15 -1`, since Docker does not
+restart an unhealthy container, and that signals every process but PID 1: it reached nothing, and
+the container ran on, unhealthy, with a SIGTERM handler or without one. Under `--init` the same
+kill ended the container, and `restart` brought it back. A reviewer caught it; no check did.
+
+**Enforced by:** Administer, at DE-5's check. Missing Engineer control: a rehearsal step (DE-9)
+asserting that `/proc/1/cmdline` in the running container names an init, and that `docker stop`
+finishes well within the grace period.
+
+**Prior art:** Docker's `--init` option, and `tini`'s own account of why it exists.
