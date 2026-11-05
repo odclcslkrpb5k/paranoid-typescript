@@ -236,19 +236,27 @@ message) and exit non-zero. They never resume.
 
 **Enforced by:** Engineer — the handlers, installed once at startup, with a test that one fires.
 
-### ER-10 (MUST) Converting to `Result`s audits every abort.
+### ER-10 (MUST) Converting to `Result`s audits every abort and every count of failures.
 Where a `throw` used to end a run, a returned failure does not: check every `throwIfAborted`, and
 every caller of a function that threw on abort, so a run cut short is never carried into the next
 stage or marked done. A subprocess API may report an abort as an ordinary exit rather than an
 error: Node's `child_process` reports `signal: "SIGTERM"` with a null code, and shells and Deno
 report exit code 143. Check the abort signal itself, or a timeout reads as a failed command.
 
+A count of failures kept in a `catch` counts nothing once failures are returned. A run's failure
+count and exit status are derived from each item's outcome, a closed union matched exhaustively
+(LN-3), in which done is one variant and never the default, so an outcome added later cannot fall
+into it.
+
 **Why:** every step of the conversion changed production behaviour somewhere; aborts were where it
-was least visible.
+was least visible. A batch tool that counted only throws as failed would have printed "0 failed"
+and exited 0 through an upstream outage: each of its 50 items ended on an error value, and nothing
+threw.
 
 **Enforced by:** Administer, in the conversion's review; a test per abort path. Missing Engineer
 control: a test that fires the abort signal at each stage of a run in turn and asserts the run is
-never carried into the next stage or marked done.
+never carried into the next stage or marked done, and one that makes every call of each port
+return an error in turn and asserts the run exits non-zero with every item counted as failed.
 
 **Prior art:** STPA's unsafe control actions (Nancy Leveson): an action stopped too soon, or
 carried on after it should have stopped.
