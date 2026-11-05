@@ -76,3 +76,7 @@ export function logs(): void {
 }
 
 export const suppressed = 1; // eslint-disable-line no-console -- expect: @eslint-community/eslint-comments/no-use, unused-directive
+
+export interface Handler {
+  handle(a: string): void; // expect: @typescript-eslint/method-signature-style
+}

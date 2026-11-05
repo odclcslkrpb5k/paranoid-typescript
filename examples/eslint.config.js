@@ -151,6 +151,8 @@ export default tseslint.config(
       "@typescript-eslint/explicit-module-boundary-types": "error",
       "@typescript-eslint/consistent-type-imports": "error",
       "@typescript-eslint/prefer-nullish-coalescing": "error",
+      // A method signature's parameters are checked bivariantly even under strictFunctionTypes.
+      "@typescript-eslint/method-signature-style": ["error", "property"],
       eqeqeq: ["error", "always", { null: "ignore" }],
       // LN-8
       "@eslint-community/eslint-comments/no-use": "error",

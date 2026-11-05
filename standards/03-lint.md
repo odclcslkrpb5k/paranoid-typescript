@@ -101,14 +101,19 @@ Engineer control: the typed `must-use-result` rule for the project's own `Result
 [`test/must-use-result.test.ts`](../examples/test/must-use-result.test.ts).
 
 ### LN-7 (SHOULD) Add a few rules the preset leaves out.
-`prefer-readonly`, `explicit-module-boundary-types`, `consistent-type-imports` and
-`prefer-nullish-coalescing`; and core ESLint `eqeqeq` as `["error", "always", { "null": "ignore"
-}]`, which keeps `x == null`, the idiom that matches both `null` and `undefined`.
+`prefer-readonly`, `explicit-module-boundary-types`, `consistent-type-imports`,
+`prefer-nullish-coalescing`, and `method-signature-style` set to `"property"`; and core ESLint
+`eqeqeq` as `["error", "always", { "null": "ignore" }]`, which keeps `x == null`, the idiom that
+matches both `null` and `undefined`.
 
 **Why:** each closes a small gap the preset leaves: a field reassigned that was meant to be fixed;
 an exported function whose return type is whatever its body happens to infer, so a change inside it
 silently changes its contract; `||` replacing a legitimate `0` or `""` with a default; `==`
-coercing across types.
+coercing across types. A member written as a method, `handle(a: Animal): void`, has its parameters
+checked both ways even under `strictFunctionTypes`: on TypeScript 6.0.3 such an interface accepted
+a function that needs a `Dog`, and the same member written as a property,
+`handle: (a: Animal) => void`, was refused with TS2322. The rule's fix rewrites the one into the
+other.
 
 **Enforced by:** Engineer.
 
