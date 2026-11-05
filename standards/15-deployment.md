@@ -279,8 +279,16 @@ restart an unhealthy container, and that signals every process but PID 1: it rea
 the container ran on, unhealthy, with a SIGTERM handler or without one. Under `--init` the same
 kill ended the container, and `restart` brought it back. A reviewer caught it; no check did.
 
-**Enforced by:** Administer, at DE-5's check. Missing Engineer control: a rehearsal step (DE-9)
-asserting that `/proc/1/cmdline` in the running container names an init, and that `docker stop`
-finishes well within the grace period.
+**Enforced by:** Engineer — a rehearsal step (DE-9), required whenever the deploy files, the
+Dockerfile or a compose file change (SH-13), that asserts three things against a throwaway copy of
+the production stack:
+- `/proc/1/comm` is an init (`docker-init` under `init: true`; `node-MainThread` without it);
+- a stop ends the container with exit 143, not 137, and quickly. The exit code does not depend on
+  the machine's load, as a time alone does;
+- the healthcheck's own recovery command raises the container's restart count, and the service
+  answers again. The exec's exit status is not the verdict: the container can go down under it.
+
+With `init: true` removed, each check failed when run alone: the stop gave exit 137 after 10.2 s,
+and the kill restarted nothing.
 
 **Prior art:** Docker's `--init` option, and `tini`'s own account of why it exists.
