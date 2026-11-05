@@ -516,6 +516,28 @@ the test mail server.
 
 **Prior art:** the practice of a local mail catcher (MailHog, Mailpit) in end-to-end tests.
 
+### TS-23 (SHOULD) A deep-equality assertion refuses a value it cannot see into. (PROPOSED)
+Node's `deepStrictEqual` compares own properties, prototypes and a few built-ins it knows. A value
+that keeps its state in internal slots or `#private` fields has no own properties, so any two of
+the same class compare equal, alone or nested in objects, arrays and Maps. Tests compare through
+one project assertion that fails closed: it walks both values, compares a type it knows how to read
+(a Temporal value by its class and `toString()`), and fails on any other object with no own
+properties whose prototype is not a plain object's or a built-in Node already compares. Its own
+tests show two different values of each known type failing, and an unknown opaque value refused.
+
+**Why:** a repository moved its tests from an assertion library that compared Temporal values to
+`node:assert`, and every date assertion became vacuous with no test failing. On Node 26.13.0,
+`deepStrictEqual` passed for two different `PlainDate`s, `Instant`s, `ZonedDateTime`s and
+`Duration`s, nested or in a Map, as did `util.isDeepStrictEqual`, `deepEqual` and
+`partialDeepStrictEqual`. So did two instances of a class whose only state was a `#private`
+field, and two different `URLSearchParams`, `Headers` and `Intl.Locale` values; a `PlainDate`
+against a `PlainTime` failed only because their prototypes differ. Comparing Temporal by
+`toString()` alone fixes the dates and leaves every other opaque class passing.
+
+**Enforced by:** Administer. Missing Engineer control: the fail-closed assertion above, with a lint
+rule refusing `node:assert`'s deep comparisons in tests outside it (`no-restricted-imports` or
+`no-restricted-properties`).
+
 ## Open questions
 
 - **Test runner:** `node:test` or Vitest. Either needs TS-3's leak check added. The examples use
