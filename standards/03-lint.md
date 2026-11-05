@@ -170,6 +170,32 @@ because it is normally safe, and the one tool that could warn it says nothing.
 destructive fix fails the ship. Administer — not running other fixers unattended. Missing Engineer
 control: a fix command that runs the linter with only an allow-list of formatting rules enabled.
 
+### LN-11 (SHOULD) An array or tuple parameter is `readonly`. (PROPOSED)
+TypeScript lets an array stand for an array of a wider element type: a function taking `Animal[]`
+accepts a `Dog[]`, and can push a cat into it, which the caller still reads as a dog. Declared
+`readonly Animal[]`, the parameter takes the same arguments and cannot be written through. A rest
+parameter is a new array and is exempt. A function whose purpose is to fill the array it is given
+is exempted by file in the lint configuration (LN-8).
+
+**Why:** on TypeScript 6.0.3 under `strict`, passing a `Dog[]` to a function that pushed a plain
+`Animal` compiled with no error. The compiler has no flag for it. typescript-eslint's
+`prefer-readonly-parameter-types` is not the control: it requires readonly all the way down, and on
+8.71.2 it refused `readonly Animal[]` itself because `Animal`'s fields can be assigned. Applied to
+the examples, the selector below found two parameters, both in tests, and neither needed to write.
+
+**Enforced by:** Engineer, in part: `no-restricted-syntax` with
+`:function > Identifier > TSTypeAnnotation > :matches(TSArrayType, TSTupleType,
+TSTypeReference[typeName.name='Array'])` refuses `T[]`, `Array<T>` and a tuple written at the
+parameter, on ESLint 10.12.0. It does not see one spelled through an alias or inside a union
+(`T[] | undefined`). Missing Engineer control: a typed rule that resolves the parameter's type and
+refuses a mutable array or tuple at its top level only.
+
+**Prior art:** Java's arrays are covariant in the same way, and it checks each store at run time
+(`ArrayStoreException`). [TScert](https://github.com/cristianoc/TScert), a verifier for
+TypeScript functions, names covariant arrays among the unsound places its checker closes.
+
+**Example:** [`eslint.config.js`](../examples/eslint.config.js).
+
 ## What lint cannot see
 
 A call that throws with no `throw` in sight (`new URL("bad")`, a library function), a combinator

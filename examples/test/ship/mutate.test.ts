@@ -387,9 +387,14 @@ test("a mutant that does not compile is its own outcome, not a kill, and the fil
   const runs = (): number => (s.exists("runs") ? s.read("runs").split("\n").length - 1 : 0);
   // Each command counts its runs and fails on its mutant, so a mutant that ran would be killed.
   const counted = (check: string): string[] => ["sh", "-c", `echo >> runs; ${asTest(check)}`];
-  const mutate = (file: string, find: string, replace: string, command: string[]): Out =>
+  const mutate = (file: string, find: string, replace: string, command: readonly string[]): Out =>
     s.run("mutate", [file, find, replace, GUARDED, "--", ...command]);
-  const uncompiled = (file: string, find: string, replace: string, command: string[]): void => {
+  const uncompiled = (
+    file: string,
+    find: string,
+    replace: string,
+    command: readonly string[],
+  ): void => {
     const original = s.read(file);
     const before = runs();
     const out = mutate(file, find, replace, command);

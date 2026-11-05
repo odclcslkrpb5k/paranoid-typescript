@@ -80,3 +80,15 @@ export const suppressed = 1; // eslint-disable-line no-console -- expect: @eslin
 export interface Handler {
   handle(a: string): void; // expect: @typescript-eslint/method-signature-style
 }
+
+export function fills(xs: string[]): void { // expect: no-restricted-syntax
+  xs.push("x");
+}
+
+export const fillsToo = (xs: Array<string>, pair: [string, string]): void => { // expect: no-restricted-syntax, no-restricted-syntax
+  xs.push(pair[0]);
+};
+
+export function counts(xs: readonly string[], ...rest: string[]): number {
+  return xs.length + rest.length;
+}

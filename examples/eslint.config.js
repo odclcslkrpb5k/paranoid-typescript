@@ -46,6 +46,16 @@ const builtins = {
   },
 };
 
+// LN-11: an array parameter is readonly, since TypeScript lets a caller's `Dog[]` be passed as an
+// `Animal[]` that the callee can then fill with cats. A type spelled through an alias is not seen.
+const parameters = {
+  mutableArray: {
+    selector:
+      ":function > Identifier > TSTypeAnnotation > :matches(TSArrayType, TSTupleType, TSTypeReference[typeName.name='Array'])",
+    message: "An array parameter is readonly: `readonly T[]` (LN-11).",
+  },
+};
+
 const restrictedGlobals = [
   "BigInt",
   "atob",
@@ -166,6 +176,7 @@ export default tseslint.config(
         catching.method,
         builtins.url,
         builtins.json,
+        parameters.mutableArray,
       ],
       "no-restricted-properties": [
         "error",
@@ -196,7 +207,7 @@ export default tseslint.config(
     // built-ins, which is the whole point of having them (ER-3, ER-4).
     files: ["src/adapters/**/*.ts"],
     rules: {
-      "no-restricted-syntax": ["error", throwing.reject],
+      "no-restricted-syntax": ["error", throwing.reject, parameters.mutableArray],
       "no-restricted-properties": ["error", ...abortSignals],
       "no-restricted-globals": "off",
       "no-restricted-imports": "off",
@@ -225,16 +236,18 @@ export default tseslint.config(
         catching.method,
         builtins.url,
         builtins.json,
+        parameters.mutableArray,
       ],
       "@typescript-eslint/require-await": "off",
     },
   },
   {
     // Tools and lint rules are the edge of their own small programs: they drive git, tsc and ESLint,
-    // and report to a terminal. They keep every type rule; only the architecture rules are relaxed.
+    // and report to a terminal. They keep every type rule, LN-11's selector among them; only the
+    // architecture rules are relaxed.
     files: ["tools/**/*.ts", "lint/**/*.ts"],
     rules: {
-      "no-restricted-syntax": "off",
+      "no-restricted-syntax": ["error", parameters.mutableArray],
       "no-restricted-properties": "off",
       "no-restricted-globals": "off",
       "no-restricted-imports": "off",
@@ -245,7 +258,7 @@ export default tseslint.config(
 
 /** The restricted-syntax entries other than `exempt`, for a file allowed that one construct. */
 function without(exempt) {
-  return Object.values({ ...throwing, ...catching, ...builtins }).filter(
+  return Object.values({ ...throwing, ...catching, ...builtins, ...parameters }).filter(
     (entry) => entry !== exempt,
   );
 }

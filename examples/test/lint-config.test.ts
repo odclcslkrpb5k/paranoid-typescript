@@ -93,6 +93,11 @@ test("each exemption reaches exactly the files it names", async () => {
     "but still may not call .json()",
   );
 
-  assert.equal(await selectorsFor(eslint, "tools/coercions.ts"), undefined);
+  const tool = must(await selectorsFor(eslint, "tools/coercions.ts"), "tool selectors");
+  assert.deepEqual(
+    tool.map((s) => s.startsWith(":function > Identifier")),
+    [true],
+    "tools keep only the readonly-parameter selector (LN-11)",
+  );
   assert.equal(await isOff(eslint, "tools/coercions.ts", "no-console"), true);
 });
