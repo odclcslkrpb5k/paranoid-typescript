@@ -233,6 +233,31 @@ same declarations the serializer uses, so the two cannot disagree.
 **Prior art:** design by contract (Bertrand Meyer): a postcondition is the supplier's obligation,
 and a client that re-checks it is working around a broken supplier.
 
+### BD-9 (SHOULD) A value that grants permission is checked by identity at every use, never by its type. (PROPOSED)
+A brand (BD-5) says what a value is; it cannot say who made it. Where holding a value is what
+permits an act (to write, to send), the type proves nothing at run time:
+- a spread with another key, `{ ...grant, to: other }`, still has the brand's type;
+- `Object.assign(grant, ...)` changes an issued value in place;
+- a cast mints one anywhere.
+
+Better first: the module that decides performs the act itself, and no permission value exists
+(Eliminate). Where one must be handed on, it is minted frozen by one module, and every use checks
+that it is one of the values that module issued: a class with a private field, checked with
+`#issued in value` (a copy has no private field), or a module-private `WeakSet` of the minted
+objects. A test shows a spread copy and a cast object are refused, and an issued one accepted.
+
+**Why:** an adopter's brand meant "a value this module issued", and review found that each of the
+three paths above produced a value the type accepted. Checked on TypeScript 6.0.3 and Node
+26.13.0: the spread copy compiles as the branded type, assigning to a frozen value throws in strict
+code, and `#issued in` is false for a spread copy and for `Object.assign({}, grant)`.
+
+**Enforced by:** Engineer — the identity check at each use, and the test that refuses a copy.
+Administer that a permission is minted this way at all. No practical Engineer control: nothing in a
+type marks it as a permission, so lint cannot tell a capability's brand from an identifier's.
+
+**Prior art:** the object-capability model (Mark S. Miller, *Robust Composition*, 2006), where
+authority is an unforgeable reference; ECMAScript's ergonomic brand checks (`#x in obj`, ES2022).
+
 ## Open questions
 
 - **Schema library:** zod or valibot (or the owner's generated decoders). Choose on how well the
