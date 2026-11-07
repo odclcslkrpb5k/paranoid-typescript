@@ -7,6 +7,11 @@ until something has checked it. Casting it is lying to the compiler about it.
 ### BD-1 (MUST) Read outside data as `unknown`, and parse it once, where it enters, into a declared type.
 - **One parse, at the boundary.** Nothing unsound downstream. A value that does not fit is refused
   loudly: `Number("eight")` is `NaN`, and `NaN` fails differently at every use.
+- **A number read from text matches a pattern before it is converted.** `Number("")`,
+  `Number(" ")` and `Number(null)` are 0, not `NaN`, and `Number("0x10")` is 16 (Node 26.13.0),
+  so "`NaN` fails every comparison" guards no bound: a blank size read as 0 passed `<= 15`. Match
+  the whole text first (`/^-?\d+$/`), and give a sentinel (-1 for "unbounded") its own named
+  variant, not a number the bound compares.
 - **Into a declared type**, not field by field out of a `Record`. Where the source declares the
   type — a client's response type, the owning service's contract — parse into that type, so one
   definition serves every consumer, and use the owner's decoder where it ships one.
