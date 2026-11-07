@@ -12,6 +12,10 @@ setting, never the value:
 - a token sent in a header is visible ASCII with no space (`/^[\x21-\x7e]+$/`);
 - a base URL that routes are appended to is compared whole: its `href` equals `origin + pathname`,
   so it holds no credentials, query or fragment.
+- a value is parsed into the type its use takes (a branded address, a `URL`), so the use has
+  nothing left to check. A check that throws at the use turns one configuration fact into a
+  failure of every call: addresses configured as `Name <addr>` would have failed a plain-address
+  check at every send, not once at boot.
 
 **Why:** a misconfigured deployment should stop, not degrade. A silent default is found weeks
 later. Naming every problem at once saves a deploy-fix-deploy loop per problem. A value that
