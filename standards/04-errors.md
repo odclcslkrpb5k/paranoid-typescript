@@ -194,9 +194,9 @@ an order in any status the source added later.
 
 **Enforced by:** Administer, in review. `noUncheckedIndexedAccess` (CP-1) forces the check; nothing
 forces its answer to be honest. Missing Engineer control: `no-restricted-syntax` refusing `??` or
-`||` with a literal right-hand side on an indexed read or a regex group, each exception justified
-in place. For a guard over another system's values, Engineer: the test pinning its lists against
-the source's set.
+`||` with a literal right-hand side (`0`, `""`, `[]`, `{}`) on an indexed read, a regex group or a
+member of outside data, each exception justified in place. For a guard over another system's
+values, Engineer: the test pinning its lists against the source's set.
 
 ### ER-8 (MUST) Branch on error codes, never on message text.
 Where another system offers only text, match it exactly, write down the dependency, and ask its

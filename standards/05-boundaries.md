@@ -25,6 +25,9 @@ until something has checked it. Casting it is lying to the compiler about it.
   change, because callers switch on it exhaustively. A schema whose members are all optional
   accepts any object, so it also requires the record itself: decode the envelope the answer comes
   in, and refuse one without the record, or with a record under a key other than the one asked for.
+  `response.items ?? []` skips that refusal: a list that is missing or null reads as "found
+  nothing", and a decision that writes on nothing then writes. Only a present, empty list means
+  none, and a null element in a list is refused like a missing member.
 - **A client that outlives its server's deploy reads an unknown enumeration value as a variant.**
   (PROPOSED) A browser tab stays open across deploys, and a mobile app is updated when its user
   chooses, so neither can take a new value "as a code change" before the server sends it. Its
