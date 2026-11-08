@@ -79,6 +79,14 @@ come before the catch-all runs. A test feeds it a malformed payload, a payload o
 and an unreadable file, and each must block. Whatever the runner does when its timeout ends the
 hook, a hook that can wait keeps a shorter deadline of its own and blocks when it passes.
 
+Where the runner can be told to block on any failure of the hook, tell it: since Claude Code
+2.1.295, `"onFailure": "block"` beside a command or http hook's `type` makes a failure to start,
+an exit other than 0 or 2, a timeout and unparseable output each act as exit 2. That closes the
+runner's timeout, which let the call through whenever it ended the hook before the hook's own
+deadline could. It does not cover a background (`async`) hook. What an older runner does with
+the field is not documented, so keep the catch-all, `|| exit 2` and the deadline until every
+machine runs a version that honours it; the payload's shape is the hook's to check either way.
+
 **Why:** a hook that throws exits 1, and the edit it was meant to check goes through unchecked. A
 malformed payload reached an uncaught `JSON.parse`, and a file the hook could not read did the
 same; each time the guarded edit went ahead. A hook that read valid JSON with no
@@ -88,7 +96,9 @@ missing from `PATH` the command exited 127, and on a module that failed to load 
 
 **Enforced by:** Engineer — the catch-all, `|| exit 2`, and the three tests. Keep a way to turn
 the hook off that does not pass through it: a bug in a fail-closed hook refuses every call it
-guards, including the edit that would fix it.
+guards, including the edit that would fix it. In Claude Code that is one run started with
+`claude --settings '{"disableAllHooks": true}'`, which overrides the project's settings; write it
+down where the hook is configured. Engineer, where the runner offers it: `"onFailure": "block"`.
 
 **Prior art:** fail-safe defaults (Saltzer and Schroeder, 1975); ER-5's safety net, pointed the
 other way: a net in front of a gate refuses rather than carries on.
