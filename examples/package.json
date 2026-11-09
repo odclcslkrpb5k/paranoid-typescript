@@ -16,6 +16,7 @@
     "hidden-chars": "node tools/hidden-chars.ts",
     "coercions": "node tools/coercions.ts",
     "baseline": "node tools/tsc-baseline.ts check",
+    "vulnerabilities": "node tools/vulnerabilities.ts",
     "fix": "prettier --write . && eslint --fix ."
   },
   "dependencies": {

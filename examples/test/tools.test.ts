@@ -11,6 +11,7 @@ import { checkRejected, checkTypes, loadOptions } from "../tools/check-fixtures.
 import { addedLines, findCoercions } from "../tools/coercions.ts";
 import { escapeHidden, findHidden } from "../tools/hidden-chars.ts";
 import { decide, deserialize, parseTscOutput, serialize } from "../tools/tsc-baseline.ts";
+import { judge, parseReport, parseWaivers } from "../tools/vulnerabilities.ts";
 import { must } from "./support/assert.ts";
 import "./support/leaks.ts";
 
@@ -203,4 +204,135 @@ test("hidden-chars finds each kind of hidden character, and escapes it", () => {
   const escaped = escapeHidden(text);
   assert.deepEqual(findHidden(escaped), []);
   assert.ok(escaped.includes("\\u00a0") && escaped.includes("\\u{e0041}"));
+});
+
+/** osv-scanner 2.7.0's JSON for a lockfile holding a malicious and a vulnerable version, cut down. */
+const OSV_REPORT = JSON.stringify({
+  results: [
+    {
+      source: { path: "/src/package-lock.json", type: "lockfile" },
+      packages: [
+        {
+          package: { name: "debug", version: "4.4.2", ecosystem: "npm" },
+          vulnerabilities: [{ id: "MAL-2025-46974" }, { id: "GHSA-4x49-vf9v-38px" }],
+          groups: [
+            {
+              ids: ["MAL-2025-46974", "GHSA-4x49-vf9v-38px"],
+              aliases: ["CVE-2025-59144", "GHSA-4x49-vf9v-38px", "MAL-2025-46974"],
+            },
+          ],
+        },
+        {
+          package: { name: "minimist", version: "1.2.5", ecosystem: "npm" },
+          groups: [{ ids: ["GHSA-xvch-5gv4-984h"], aliases: ["CVE-2021-44906"] }],
+        },
+      ],
+    },
+  ],
+});
+
+const MINIMIST = {
+  name: "minimist",
+  version: "1.2.5",
+  ids: ["GHSA-xvch-5gv4-984h", "CVE-2021-44906"],
+} as const;
+
+function waiver(over: Partial<{ id: string; name: string; until: string; reason: string }> = {}) {
+  return { id: "GHSA-xvch-5gv4-984h", name: "minimist", until: "2026-12-01", reason: "r", ...over };
+}
+
+test("vulnerabilities reads every advisory group, with all its names", () => {
+  assert.deepEqual(parseReport(OSV_REPORT), [
+    {
+      name: "debug",
+      version: "4.4.2",
+      ids: ["MAL-2025-46974", "GHSA-4x49-vf9v-38px", "CVE-2025-59144"],
+    },
+    MINIMIST,
+  ]);
+  assert.deepEqual(parseReport('{"results":[]}'), []);
+});
+
+test("vulnerabilities refuses a report it cannot read, rather than reading it as clean", () => {
+  for (const bad of [
+    "",
+    "{}",
+    '{"results":[{}]}',
+    '{"results":[{"packages":[{"package":{"name":"a","version":"1"}}]}]}',
+    '{"results":[{"packages":[{"package":{"name":"a","version":"1"},"groups":[{"ids":[],"aliases":[]}]}]}]}',
+  ]) {
+    assert.equal(parseReport(bad), undefined, `read ${bad}`);
+  }
+});
+
+test("vulnerabilities passes a finding under a live waiver, by any of its names", () => {
+  assert.deepEqual(judge([MINIMIST], [waiver()], "2026-11-09"), []);
+  assert.deepEqual(judge([MINIMIST], [waiver({ id: "CVE-2021-44906" })], "2026-11-09"), []);
+  assert.deepEqual(judge([], [], "2026-11-09"), []);
+});
+
+test("vulnerabilities fails a finding with no waiver, or one for another package", () => {
+  assert.deepEqual(judge([MINIMIST], [], "2026-11-09"), [
+    "minimist@1.2.5 GHSA-xvch-5gv4-984h / CVE-2021-44906: no live waiver",
+  ]);
+  assert.deepEqual(judge([MINIMIST], [waiver({ name: "other" })], "2026-11-09"), [
+    "minimist@1.2.5 GHSA-xvch-5gv4-984h / CVE-2021-44906: no live waiver",
+    "waiver GHSA-xvch-5gv4-984h for other: matches no finding; delete it",
+  ]);
+});
+
+test("vulnerabilities fails a waiver on its date, not the day after", () => {
+  assert.deepEqual(judge([MINIMIST], [waiver({ until: "2026-11-10" })], "2026-11-09"), []);
+  assert.deepEqual(judge([MINIMIST], [waiver({ until: "2026-11-09" })], "2026-11-09"), [
+    "minimist@1.2.5 GHSA-xvch-5gv4-984h / CVE-2021-44906: no live waiver",
+    "waiver GHSA-xvch-5gv4-984h for minimist: expired on 2026-11-09",
+  ]);
+});
+
+test("vulnerabilities refuses a waiver longer than ninety days", () => {
+  assert.deepEqual(judge([MINIMIST], [waiver({ until: "2027-02-07" })], "2026-11-09"), []);
+  assert.deepEqual(judge([MINIMIST], [waiver({ until: "2027-02-08" })], "2026-11-09"), [
+    "waiver GHSA-xvch-5gv4-984h for minimist: runs to 2027-02-08, past 90 days from today",
+  ]);
+});
+
+test("vulnerabilities never lets a malicious package be waived, under any of its names", () => {
+  const findings = must(parseReport(OSV_REPORT), "the report");
+  const label = "debug@4.4.2 MAL-2025-46974 / GHSA-4x49-vf9v-38px / CVE-2025-59144";
+  for (const id of ["MAL-2025-46974", "GHSA-4x49-vf9v-38px", "CVE-2025-59144"]) {
+    assert.deepEqual(judge(findings, [waiver(), waiver({ id, name: "debug" })], "2026-11-09"), [
+      `${label}: a malicious package; remove it, it cannot be waived`,
+      `waiver ${id} for debug: waives a malicious package`,
+    ]);
+  }
+});
+
+test("vulnerabilities reads waivers, naming each malformed entry", () => {
+  const good = waiver();
+  assert.deepEqual(parseWaivers(JSON.stringify({ version: 1, waivers: [good] })), {
+    waivers: [good],
+    problems: [],
+  });
+  const bad = [
+    waiver({ until: "" }),
+    waiver({ until: "2026-02-30" }),
+    waiver({ reason: " " }),
+    waiver({ id: "minimist" }),
+    waiver({ name: "" }),
+    "text",
+  ];
+  assert.deepEqual(parseWaivers(JSON.stringify({ version: 1, waivers: bad })), {
+    waivers: [],
+    problems: [
+      'vulnerability-waivers.json entry 1: no "until" date (YYYY-MM-DD); every waiver expires',
+      'vulnerability-waivers.json entry 2: no "until" date (YYYY-MM-DD); every waiver expires',
+      "vulnerability-waivers.json entry 3: no reason",
+      "vulnerability-waivers.json entry 4: no advisory id",
+      "vulnerability-waivers.json entry 5: no package name",
+      "vulnerability-waivers.json entry 6 is not an object",
+    ],
+  });
+  for (const file of ["", "[]", '{"version":2,"waivers":[]}']) {
+    assert.equal(parseWaivers(file).problems.length, 1, `accepted ${file}`);
+  }
 });

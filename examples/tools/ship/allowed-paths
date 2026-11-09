@@ -18,6 +18,7 @@
 ^package\.json$
 ^package-lock\.json$
 ^tsconfig\.json$
+^vulnerability-waivers\.json$
 # Directories.
 ^src/
 ^test/

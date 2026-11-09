@@ -6,6 +6,9 @@ on:
     paths: ["examples/**", ".dockerignore", ".github/workflows/examples.yml"]
   pull_request:
     paths: ["examples/**", ".dockerignore", ".github/workflows/examples.yml"]
+  # A new advisory arrives without any change here, so the lockfile is judged again every day.
+  schedule:
+    - cron: "17 5 * * *"
 
 permissions:
   contents: read
@@ -23,3 +26,7 @@ jobs:
       # verifies registry signatures (TC-3, TC-7); the check itself runs with no network (TS-1).
       - name: Check, in the examples' own environment
         run: docker compose --file examples/compose.yaml run --build --rm check
+      # Known vulnerabilities and malicious packages in the lockfile (TC-10), with the network the
+      # advisory database needs; a waiver that has expired fails here as a finding does.
+      - name: Vulnerabilities, judged against the waivers
+        run: docker compose --file examples/compose.yaml run --build --rm vulnerabilities

@@ -151,6 +151,57 @@ it was not built for.
 **Enforced by:** Engineer — npm refuses to install a peer dependency outside its range (`ERESOLVE`)
 unless forced; never pass `--force` or `--legacy-peer-deps` to get past it.
 
+### TC-10 (MUST) Every check fails on a known vulnerability or malicious package in the lockfile that no expiring waiver covers. (PROPOSED)
+A scanner reads the lockfile, so it judges what will be installed, a malicious version the
+registry has since removed included. Any finding fails, whatever its severity: a severity
+threshold silences every later finding at that level, not the one that was reviewed. It runs
+wherever the check runs (TC-5), on every ship and every CI run, and on a daily schedule as well,
+since an advisory is published without any change to the repository. A finding then stops
+unrelated work until it is fixed or waived; that is the price of never missing one.
+- **Waivers are one committed file, judged by the project, not by the scanner.** Each names one
+  advisory and one package, says why, and expires no more than 90 days out; on that day the check
+  fails again. The check refuses a waiver with no date, one that matches no finding, and any
+  waiver of a malicious package (`MAL-*`, under any of its aliases): that package is removed, never
+  waived. The scanner runs with no ignore list of its own, because scanners differ in how they
+  honour one (below).
+- **The scanner's exit status and its report are judged together.** One that cannot reach its
+  advisory database has not checked anything, whatever its summary says.
+- **The scanner is pinned by digest** and runs in the project's environment (TC-9): it is code
+  run with the network and the source tree.
+- **It is the one check with a network**, so it runs as a command of its own beside TC-5's,
+  which keeps none (TS-1); every place that runs the check, CI among them, runs both.
+
+Choosing one, measured in November 2026 against a lockfile holding a vulnerable `minimist@1.2.5`
+and the malicious `debug@4.4.2`:
+- osv-scanner 2.7.0 found both, named the malware by its `MAL-` id, honoured `ignoreUntil`, and
+  refused a misspelled configuration key. It also accepted a waiver of the `MAL-` advisory, only
+  warned about a waiver that matched nothing, and without a network exited 127 while printing
+  "0 vulnerabilities".
+- Grype 0.121.0 found both, reported the malware as a plain "High", and ignored `expires:`: a
+  rule dated in the past still hid its finding, and the unknown key raised no error.
+- `npm audit` (npm 11.20) found both and named the malware, but has no waiver file at all.
+- `pnpm audit` (pnpm 12.16.1) has `ignoreGhsas`, which never expire, and two switches that pass a
+  check that should fail: `--ignore-unfixable` and `--ignore-registry-errors`.
+- Trivy 0.76.1 found both and honoured `exp:` in its ignore file. Its own release and its GitHub
+  Action tags were hijacked in March 2026 (CVE-2026-33634), which is the case for the digest.
+
+**Why:** in the npm compromises of September 2025 (TC-4), a lockfile resolved in the hours before
+the malicious versions were removed kept them. A release age keeps new versions out; nothing else
+looks at what the lockfile already holds, and an advisory against an old version appears with no
+change to the project at all. The examples' own lockfile carried an unwaived denial-of-service
+advisory in a lint dependency on the day this check was added.
+
+**Enforced by:** Engineer — the scanner, and a check that judges its report against the waiver
+file, tested by planting each refusal. Administer — the reason a waiver gives. Missing Engineer
+control: reading the waiver file from the base as well, as SH-12 reads its digest list, so one
+change cannot add a finding and its waiver together.
+
+**Prior art:** OSV and the OpenSSF malicious-packages feed; npm audit; GitHub's dependency
+review; the straitjacket template's expiring waivers, mirrored across two scanners.
+
+**Example:** [`tools/vulnerabilities.ts`](../examples/tools/vulnerabilities.ts),
+[`vulnerability-waivers.json`](../examples/vulnerability-waivers.json).
+
 ## Open questions
 
 - **Formatter:** Prettier or Biome. Either works, since lint is typescript-eslint regardless;

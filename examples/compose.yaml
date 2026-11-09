@@ -1,7 +1,8 @@
 # Everything the examples need, as services: only Docker is required on the workstation (TC-9).
 #
-#   docker compose run --build --rm check   every check, against the tree as it is now (TS-8)
-#   docker compose run --build --rm fix     format and lint-fix the files in place (see below)
+#   docker compose run --build --rm check            every check, against the tree as it is now (TS-8)
+#   docker compose run --build --rm vulnerabilities  the lockfile against known advisories (TC-10)
+#   docker compose run --build --rm fix              format and lint-fix the files in place (below)
 name: paranoid-typescript-examples
 
 x-image: &image
@@ -20,6 +21,12 @@ services:
     environment:
       SHIP_NODE: node
     command: ["npm", "run", "check"]
+
+  # Known vulnerabilities and malicious packages in the lockfile (TC-10). The one service with a
+  # network, since the advisory database is online; the tests never run here.
+  vulnerabilities:
+    <<: *image
+    command: ["npm", "run", "vulnerabilities"]
 
   fix:
     <<: *image
