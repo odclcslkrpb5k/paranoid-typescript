@@ -96,6 +96,17 @@ policy, the dates are the evidence. In a public template, `aube audit --fix=upda
 release 26 days old under a 30-day minimum. On npm 11.19.1, `min-release-age=7` refused an exact
 pin 4 days old (`notarget`) and resolved a range to the newest version at least 7 days old.
 
+Where the package manager can refuse a release whose publisher's trust fell, turn it on. On pnpm
+12.16.1, `trustPolicy: no-downgrade` refused `chokidar@4.0.3` as a "high-risk trust downgrade
+(possible package takeover)"; an exception goes in `trustPolicyExclude` pinned to one exact
+version, so the next release is judged again. `blockExoticSubdeps: true` refused a dependency's
+own git and tarball-URL dependencies (`ERR_PNPM_EXOTIC_SUBDEP`); it was already the default, but
+write it down anyway, since `pnpm config get` reports only what is written. A misspelled setting
+(`trustPolicyy`) only printed a warning and installed with exit 0, so a test reads each setting
+back with `pnpm config get` and fails unless it holds the intended value. npm 11 has no trust
+policy; there the lockfile check above, which refuses a version from outside the registry, is the
+nearest control.
+
 **Why:** in the npm compromises of September 2025, popular packages were republished from phished
 maintainer accounts with malicious code, and a self-replicating worm spread through `postinstall`
 scripts. Both reached users through versions installed within hours of publication, before anyone
