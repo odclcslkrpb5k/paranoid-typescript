@@ -26,7 +26,7 @@ jobs:
       # verifies registry signatures (TC-3, TC-7); the check itself runs with no network (TS-1).
       - name: Check, in the examples' own environment
         run: docker compose --file examples/compose.yaml run --build --rm check
-      # Known vulnerabilities and malicious packages in the lockfile (TC-10), with the network the
-      # advisory database needs; a waiver that has expired fails here as a finding does.
-      - name: Vulnerabilities, judged against the waivers
-        run: docker compose --file examples/compose.yaml run --build --rm vulnerabilities
+      # The lockfile's known vulnerabilities and malicious packages (TC-10) and the age of every
+      # version in it (TC-4), with the network both need; an expired waiver fails as a finding does.
+      - name: Supply chain, judged against the waivers and the minimum release age
+        run: docker compose --file examples/compose.yaml run --build --rm supply-chain

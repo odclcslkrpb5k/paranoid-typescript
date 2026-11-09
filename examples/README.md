@@ -33,6 +33,7 @@ does not yet support 7.0); tests use `node:test`, valibot and fast-check.
 | [`tools/coercions.ts`](tools/coercions.ts)                                                                         | every coercion on the lines a change adds, for review                                                                    | BD-2                       |
 | [`tools/hidden-chars.ts`](tools/hidden-chars.ts)                                                                   | literal hidden characters found and escaped                                                                              | CD-7                       |
 | [`tools/vulnerabilities.ts`](tools/vulnerabilities.ts), [`vulnerability-waivers.json`](vulnerability-waivers.json) | the lockfile against known advisories; waivers that expire, and none for a malicious package                             | TC-10                      |
+| [`tools/release-age.ts`](tools/release-age.ts)                                                                     | every locked version's publish date against the minimum release age                                                      | TC-4                       |
 | [`Dockerfile`](Dockerfile), [`compose.yaml`](compose.yaml)                                                         | the environment as files: runtime, git and packages pinned; the check with no network                                    | TC-9, TC-1, TS-1, TS-8     |
 | [`../.github/workflows/examples.yml`](../.github/workflows/examples.yml)                                           | CI running the same compose service                                                                                      | TC-5, TC-9                 |
 | [`test/cli.test.ts`](test/cli.test.ts)                                                                             | the git-driven tools run end to end in throwaway repositories                                                            | BD-2, CD-7                 |
@@ -52,11 +53,12 @@ network) and then runs every check with no network at all: formatting, the type 
 compiler-option fixtures, lint, the tests, and a scan of the whole repository for hidden
 characters. `--build` makes the run check the tree as it is now, never an older image (TS-8).
 
-    docker compose run --build --rm vulnerabilities
+    docker compose run --build --rm supply-chain
 
-judges the lockfile against osv-scanner's advisories and the waivers (TC-10). It is the one
-service with a network, so it runs beside the check rather than inside it; CI runs both, and runs
-this one daily as well.
+judges the lockfile against osv-scanner's advisories and the waivers (TC-10), and the publish date
+of every version in it against `.npmrc`'s `min-release-age` (TC-4). It is the one service with a
+network, so it runs beside the check rather than inside it; CI runs both, and runs this one daily
+as well.
 
     HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose run --build --rm fix
 

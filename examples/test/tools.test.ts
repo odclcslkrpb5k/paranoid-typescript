@@ -11,6 +11,7 @@ import { checkRejected, checkTypes, loadOptions } from "../tools/check-fixtures.
 import { addedLines, findCoercions } from "../tools/coercions.ts";
 import { escapeHidden, findHidden } from "../tools/hidden-chars.ts";
 import { decide, deserialize, parseTscOutput, serialize } from "../tools/tsc-baseline.ts";
+import { judgeAges, readLockfile, readMinAge } from "../tools/release-age.ts";
 import { judge, parseReport, parseWaivers } from "../tools/vulnerabilities.ts";
 import { must } from "./support/assert.ts";
 import "./support/leaks.ts";
@@ -335,4 +336,62 @@ test("vulnerabilities reads waivers, naming each malformed entry", () => {
   for (const file of ["", "[]", '{"version":2,"waivers":[]}']) {
     assert.equal(parseWaivers(file).problems.length, 1, `accepted ${file}`);
   }
+});
+
+const NOW = new Date("2026-11-09T12:00:00Z");
+const LOCKED = {
+  name: "@scope/pkg",
+  version: "1.2.3",
+  resolved: "https://registry.npmjs.org/@scope/pkg/-/pkg-1.2.3.tgz",
+} as const;
+
+test("release-age reads min-release-age only as whole days, and only when set", () => {
+  assert.equal(readMinAge("save-exact=true\nmin-release-age=7\n"), 7);
+  assert.equal(readMinAge(" min-release-age = 14 "), 14);
+  for (const bad of ["", "min-release-age=", "min-release-age=0", "min-release-age=7d"]) {
+    assert.equal(readMinAge(bad), undefined, `read ${bad}`);
+  }
+});
+
+test("release-age reads every installed lockfile entry, nested and scoped", () => {
+  const lock = JSON.stringify({
+    lockfileVersion: 3,
+    packages: {
+      "": { name: "root" },
+      "node_modules/@scope/pkg": { version: "1.2.3", resolved: LOCKED.resolved },
+      "node_modules/a/node_modules/b": { version: "2.0.0" },
+      "packages/local": { link: true },
+    },
+  });
+  assert.deepEqual(readLockfile(lock), [LOCKED, { name: "b", version: "2.0.0", resolved: "" }]);
+  for (const bad of ["", "{}", '{"lockfileVersion":2,"packages":{}}']) {
+    assert.equal(readLockfile(bad), undefined, `read ${bad}`);
+  }
+  const noVersion = '{"lockfileVersion":3,"packages":{"node_modules/a":{}}}';
+  assert.equal(readLockfile(noVersion), undefined);
+});
+
+test("release-age passes a version as old as the minimum, and fails one a moment younger", () => {
+  const at = (iso: string) => new Map([["@scope/pkg", { "1.2.3": iso }]]);
+  assert.deepEqual(judgeAges([LOCKED], at("2026-11-02T12:00:00Z"), NOW, 7), []);
+  assert.deepEqual(judgeAges([LOCKED], at("2026-11-02T12:00:01Z"), NOW, 7), [
+    "@scope/pkg@1.2.3: published 2026-11-02, under min-release-age (7 days)",
+  ]);
+});
+
+test("release-age fails a version with no publish date, or from outside the registry", () => {
+  assert.deepEqual(judgeAges([LOCKED], new Map(), NOW, 7), [
+    "@scope/pkg@1.2.3: the registry gives no publish date",
+  ]);
+  const other = new Map([["@scope/pkg", { "9.9.9": "2020-01-01T00:00:00Z" }]]);
+  assert.deepEqual(judgeAges([LOCKED], other, NOW, 7), [
+    "@scope/pkg@1.2.3: the registry gives no publish date",
+  ]);
+  const git = { ...LOCKED, resolved: "git+ssh://git@example.com/pkg.git#abc" };
+  assert.deepEqual(judgeAges([git], new Map(), NOW, 7), [
+    "@scope/pkg@1.2.3: resolved from git+ssh://git@example.com/pkg.git#abc, not the registry",
+  ]);
+  assert.deepEqual(judgeAges([{ ...LOCKED, resolved: "" }], new Map(), NOW, 7), [
+    "@scope/pkg@1.2.3: resolved from nowhere, not the registry",
+  ]);
 });

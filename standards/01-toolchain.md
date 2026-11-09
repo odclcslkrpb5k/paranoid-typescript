@@ -89,14 +89,23 @@ On npm 11.20, a committed `.npmrc` can hold all of it: `ignore-scripts=true`, `m
 package needs is run by name, as a reviewed line in the project's setup, and the line must say
 `npm rebuild <package> --ignore-scripts=false`: under the committed `ignore-scripts=true`, plain
 `npm rebuild <package>` exited 0 without running the package's install script. A release age
-guards only versions newly resolved; it does nothing for what the lockfile already holds.
+guards only versions newly resolved; it does nothing for what the lockfile already holds. So the
+check also reads the registry's publish date of every version in the lockfile and fails on one
+younger than the minimum, or one resolved from anywhere but the registry: the setting is the
+policy, the dates are the evidence. In a public template, `aube audit --fix=update` locked a zod
+release 26 days old under a 30-day minimum. On npm 11.19.1, `min-release-age=7` refused an exact
+pin 4 days old (`notarget`) and resolved a range to the newest version at least 7 days old.
 
 **Why:** in the npm compromises of September 2025, popular packages were republished from phished
 maintainer accounts with malicious code, and a self-replicating worm spread through `postinstall`
 scripts. Both reached users through versions installed within hours of publication, before anyone
 had noticed them.
 
-**Enforced by:** Engineer — package manager configuration, committed.
+**Enforced by:** Engineer — package manager configuration, committed, and the lockfile's publish
+dates checked against it.
+
+**Example:** [`.npmrc`](../examples/.npmrc),
+[`tools/release-age.ts`](../examples/tools/release-age.ts).
 
 ### TC-5 (MUST) One command runs every check, and CI runs exactly that command.
 Formatting check, lint, type check (`tsc --noEmit`) and tests, in one script (`npm run check`), run

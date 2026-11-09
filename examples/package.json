@@ -17,6 +17,8 @@
     "coercions": "node tools/coercions.ts",
     "baseline": "node tools/tsc-baseline.ts check",
     "vulnerabilities": "node tools/vulnerabilities.ts",
+    "release-age": "node tools/release-age.ts",
+    "supply-chain": "npm run vulnerabilities && npm run release-age",
     "fix": "prettier --write . && eslint --fix ."
   },
   "dependencies": {
