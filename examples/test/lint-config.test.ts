@@ -84,7 +84,7 @@ test("each exemption reaches exactly the files it names", async () => {
   assert.ok(
     !adapter.includes("ThrowStatement") && !adapter.some((s) => s.startsWith("CatchClause")),
   );
-  assert.equal(await isOff(eslint, "src/adapters/http.ts", "no-restricted-imports"), true);
+  assert.equal(await isOff(eslint, "src/adapters/http.ts", "no-restricted-imports"), false);
 
   const fake = must(await selectorsFor(eslint, "test/fakes/fetch.ts"), "fake selectors");
   assert.ok(!fake.includes("ThrowStatement"), "fakes may throw as foreign code does");
@@ -100,4 +100,30 @@ test("each exemption reaches exactly the files it names", async () => {
     "tools keep only the readonly-parameter selector (LN-11)",
   );
   assert.equal(await isOff(eslint, "tools/coercions.ts", "no-console"), true);
+});
+
+test("domain code and adapters alike are refused the environment; tools are not", async () => {
+  const eslint = new ESLint({ cwd: root });
+  /** The rules a line draws when appended to a real file, linted with its own configuration. */
+  async function drawn(file: string, line: string): Promise<readonly string[]> {
+    const filePath = path.join(root, file);
+    const [result] = await eslint.lintText(`${readFileSync(filePath, "utf8")}\n${line}\n`, {
+      filePath,
+    });
+    return must(result, `the lint result for ${file}`).messages.map((m) => m.ruleId ?? "fatal");
+  }
+  for (const file of ["src/records.ts", "src/adapters/http.ts"]) {
+    assert.deepEqual(await drawn(file, 'export const a = process.env["HOME"];'), [
+      "no-restricted-properties",
+    ]);
+    assert.deepEqual(await drawn(file, "export const { env } = process;"), [
+      "no-restricted-properties",
+    ]);
+  }
+  assert.deepEqual(await drawn("src/adapters/http.ts", 'import { env } from "node:process";'), [
+    "no-restricted-imports",
+    "@typescript-eslint/no-unused-vars",
+  ]);
+  assert.deepEqual(await drawn("src/records.ts", "export const n = 1;"), []);
+  assert.deepEqual(await drawn("tools/coercions.ts", 'export const a = process.env["HOME"];'), []);
 });

@@ -105,6 +105,24 @@ const abortSignals = ["timeout", "any"].map((property) => ({
   message: "Use one AbortController per attempt, cleared when it ends (SV-20).",
 }));
 
+/**
+ * Configuration is read once, by the configuration module, and handed on as parsed values (SV-1);
+ * code that reads the environment itself finds a missing setting on its first call, not at boot.
+ * The project's configuration module is exempted by file; these examples have none.
+ */
+const processEnv = {
+  object: "process",
+  property: "env",
+  message: "Read configuration from the parsed configuration, never the environment (SV-1).",
+};
+const envImports = {
+  paths: ["node:process", "process"].map((name) => ({
+    name,
+    importNames: ["env"],
+    message: "Read configuration from the parsed configuration, never the environment (SV-1).",
+  })),
+};
+
 export default tseslint.config(
   // Fixtures that exist to fail a check are left out; the ones that should be clean are linted.
   {
@@ -191,6 +209,7 @@ export default tseslint.config(
           message: "JSON.stringify throws on a bigint or a cycle; serialize in an adapter (ER-4).",
         },
         ...abortSignals,
+        processEnv,
       ],
       "no-restricted-globals": ["error", ...restrictedGlobals],
       "no-restricted-imports": ["error", domainImports],
@@ -208,9 +227,9 @@ export default tseslint.config(
     files: ["src/adapters/**/*.ts"],
     rules: {
       "no-restricted-syntax": ["error", throwing.reject, parameters.mutableArray],
-      "no-restricted-properties": ["error", ...abortSignals],
+      "no-restricted-properties": ["error", ...abortSignals, processEnv],
       "no-restricted-globals": "off",
-      "no-restricted-imports": "off",
+      "no-restricted-imports": ["error", envImports],
     },
   },
   {

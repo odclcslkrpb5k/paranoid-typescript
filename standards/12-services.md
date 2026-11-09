@@ -27,7 +27,11 @@ whatever printed the error (ER-5). A trailing carriage return was dropped silent
 keeps the `?` or `#`, so every route appended to it landed in the query or the fragment;
 `https://user:pw@host/` passed the same pathname check.
 
-**Enforced by:** Engineer — the configuration parser, with tests.
+**Enforced by:** Engineer — the configuration parser, with tests; and lint refusing `process.env`,
+and an `env` import from `node:process`, everywhere but the configuration module, so no other code
+reads the environment for itself and finds a missing setting on its first call instead of at boot.
+
+**Example:** [`eslint.config.js`](../examples/eslint.config.js) (`processEnv`, `envImports`).
 
 **Prior art:** the Twelve-Factor App's configuration in the environment, made strict.
 
