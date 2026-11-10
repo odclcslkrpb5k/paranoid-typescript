@@ -230,11 +230,15 @@ error's `message` property, with the recorded exceptions exempt by file.
 
 ### ER-9 (MUST) A process-level handler treats anything that reaches it as a bug.
 `uncaughtException` and `unhandledRejection` handlers report the error (by class, and a `Panic`'s
-message) and exit non-zero. They never resume.
+message) and exit non-zero. They never resume. Both are installed: with only `unhandledRejection`,
+an EventEmitter's unhandled `'error'` and a throw from a timer reach Node's default printer, which
+writes the message and the stack (Node 24.22.0 and 26.13.0), and a message may quote data (DP-3).
 
 **Why:** a process that carries on after an unknown failure is in an unknown state.
 
-**Enforced by:** Engineer — the handlers, installed once at startup, with a test that one fires.
+**Enforced by:** Engineer — the handlers, installed once at startup, with a test that each fires:
+a rejected promise, an emitter's unhandled `'error'` and a timer's throw, each run in a child
+process whose output is checked for the handler's text and for no part of the error's message.
 
 ### ER-10 (MUST) Converting to `Result`s audits every abort and every count of failures.
 Where a `throw` used to end a run, a returned failure does not: check every `throwIfAborted`, and
