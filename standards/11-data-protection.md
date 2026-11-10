@@ -37,6 +37,15 @@ constructor or validator may quote the value it refuses, even on the program's o
 non-throwing companion and return the program's own error, which names the kind of value and not
 the value (ER-4), with a test that a refusal's error carries no part of the input.
 
+A logger whose field types admit no free text does not keep free text out by its types alone.
+TypeScript checks excess properties only on an object literal (6.0.3 and 7.0.2), so
+`const f = { backend, name }; log("x", f)` compiles, and a logger that spreads its fields sends
+`name`, and can overwrite its own `event` key. The logger copies only the declared keys, from a
+table typed `{ readonly [K in keyof Fields]-?: true }` so that a key left out fails to compile,
+and writes its own keys last. Its test passes a variable holding an extra key: a
+`@ts-expect-error` test written as a literal passes either way. The same holds for any alert,
+notification or telemetry payload built by spreading.
+
 **Why:** logs and alerts travel further than the data's own store, to people and systems with no
 right to it. URLs carried account numbers into one service's error messages. Another built a date
 from its own records with a library constructor whose message quotes the text it refuses; its work
