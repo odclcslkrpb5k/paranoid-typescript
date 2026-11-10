@@ -12,6 +12,11 @@ until something has checked it. Casting it is lying to the compiler about it.
   so "`NaN` fails every comparison" guards no bound: a blank size read as 0 passed `<= 15`. Match
   the whole text first (`/^-?\d+$/`), and give a sentinel (-1 for "unbounded") its own named
   variant, not a number the bound compares.
+- **A host name is lower-cased where it is parsed, whatever the scheme.** `new URL()` lower-cases
+  the host only for the WHATWG special schemes (http, https, ws, wss, ftp, file); a `mysql://` or
+  `postgres://` host is opaque and keeps its case (Node 24.22.0 and 26.13.0). A check that a
+  database host equals its certificate's name, or is on a list, then differs by case alone: it
+  refuses a valid host, or lets a blocked one through.
 - **Into a declared type**, not field by field out of a `Record`. Where the source declares the
   type — a client's response type, the owning service's contract — parse into that type, so one
   definition serves every consumer, and use the owner's decoder where it ships one.
