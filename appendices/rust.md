@@ -90,18 +90,19 @@ same decoder in safe Rust panics instead. In ladder order:
 - **Frozen install (TC-3).** Every cargo command in the gate passes `--locked`. A manifest's
   version requirement changed without the lockfile fails the first such command, on cargo 1.99.1
   with "cannot update the lock file ... because --locked was passed to prevent this" (exit 101).
-- **cargo-deny does not check what it does not list (TS-6).** cargo-deny 0.20.2 leaves out every
-  dev-dependency from outside the workspace when it builds its graph, and neither `--workspace` nor
-  `[graph] exclude-dev = false` changes that. With `[licenses] allow = ["Apache-2.0", "MIT"]`, a
-  dev-dependency licensed MPL-2.0 passed `cargo deny --locked check licenses` (exit 0), and
-  `cargo deny list` named only the workspace's own crates while `cargo tree` showed the
-  dev-dependency. The only sign was a `license-not-encountered` warning for each allowed licence.
-  The advisory check is not affected: it failed on RUSTSEC-2020-0071 in `time` 0.1.45 held as a
-  dev-dependency (exit 1). Run the licence check on a copy of the manifests in which
-  `[dev-dependencies]` is renamed `[target.'cfg(all())'.dependencies]` (that copy then failed with
-  `error[rejected]`, exit 4), and have the gate compare deny's set of `name@version` with the set
-  from `cargo tree --workspace --locked --edges normal,build,dev`, for the build's target. Compare
-  sets, not counts: `Cargo.lock` also lists dependencies of other platforms.
+- **cargo-deny does not check what it does not list (TS-6, TC-11).** cargo-deny 0.20.2 leaves out
+  every dev-dependency from outside the workspace when it builds its graph, and neither
+  `--workspace` nor `[graph] exclude-dev = false` changes that. With
+  `[licenses] allow = ["Apache-2.0", "MIT"]`, a dev-dependency licensed MPL-2.0 passed
+  `cargo deny --locked check licenses` (exit 0), and `cargo deny list` named only the workspace's
+  own crates while `cargo tree` showed the dev-dependency. The only sign was a
+  `license-not-encountered` warning for each allowed licence. The advisory check is not affected:
+  it failed on RUSTSEC-2020-0071 in `time` 0.1.45 held as a dev-dependency (exit 1). Run the
+  licence check on a copy of the manifests in which `[dev-dependencies]` is renamed
+  `[target.'cfg(all())'.dependencies]` (that copy then failed with `error[rejected]`, exit 4), and
+  have the gate compare deny's set of `name@version` with the set from
+  `cargo tree --workspace --locked --edges normal,build,dev`, for the build's target. Compare sets,
+  not counts: `Cargo.lock` also lists dependencies of other platforms.
 
 ## Unsafe code (chapter 03)
 

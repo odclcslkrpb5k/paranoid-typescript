@@ -15,6 +15,7 @@
 ^LICENSE$
 ^README\.md$
 ^eslint\.config\.js$
+^licence-allow-list\.json$
 ^package\.json$
 ^package-lock\.json$
 ^tsconfig\.json$

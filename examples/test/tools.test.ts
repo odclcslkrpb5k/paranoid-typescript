@@ -11,6 +11,7 @@ import { checkRejected, checkTypes, loadOptions } from "../tools/check-fixtures.
 import { addedLines, findCoercions } from "../tools/coercions.ts";
 import { escapeHidden, findHidden } from "../tools/hidden-chars.ts";
 import { decide, deserialize, parseTscOutput, serialize } from "../tools/tsc-baseline.ts";
+import { allows, judgeLicences, parseAllowList, parseLicence } from "../tools/licences.ts";
 import { judgeAges, readLockfile, readMinAge } from "../tools/release-age.ts";
 import { judge, parseReport, parseWaivers } from "../tools/vulnerabilities.ts";
 import { must } from "./support/assert.ts";
@@ -393,5 +394,109 @@ test("release-age fails a version with no publish date, or from outside the regi
   ]);
   assert.deepEqual(judgeAges([{ ...LOCKED, resolved: "" }], new Map(), NOW, 7), [
     "@scope/pkg@1.2.3: resolved from nowhere, not the registry",
+  ]);
+});
+
+test("parseLicence reads SPDX expressions and nothing else", () => {
+  assert.deepEqual(parseLicence("MIT"), { kind: "id", id: "MIT" });
+  assert.deepEqual(parseLicence(" (MIT OR Apache-2.0) "), {
+    kind: "or",
+    left: { kind: "id", id: "MIT" },
+    right: { kind: "id", id: "Apache-2.0" },
+  });
+  // AND binds tighter than OR.
+  assert.deepEqual(parseLicence("MIT OR ISC AND GPL-3.0-only"), {
+    kind: "or",
+    left: { kind: "id", id: "MIT" },
+    right: {
+      kind: "and",
+      left: { kind: "id", id: "ISC" },
+      right: { kind: "id", id: "GPL-3.0-only" },
+    },
+  });
+  assert.deepEqual(parseLicence("GPL-2.0-only WITH Classpath-exception-2.0"), {
+    kind: "id",
+    id: "GPL-2.0-only WITH Classpath-exception-2.0",
+  });
+  for (const text of [
+    "",
+    "   ",
+    "SEE LICENSE IN LICENSE.txt",
+    "MIT OR",
+    "AND MIT",
+    "(MIT",
+    // Only the closing-parenthesis check refuses this: "ISC" would be read as the ")".
+    "(MIT ISC",
+    "MIT)",
+    "MIT ISC",
+    "MIT WITH",
+    "MIT / ISC",
+  ]) {
+    assert.equal(parseLicence(text), undefined, text);
+  }
+});
+
+test("allows: OR needs one side, AND both, WITH the whole text", () => {
+  const allowed = new Set(["MIT", "ISC"]);
+  const check = (text: string) => allows(must(parseLicence(text), text), allowed);
+  assert.deepEqual(check("MIT"), ["MIT"]);
+  assert.equal(check("GPL-3.0-only"), false);
+  assert.deepEqual(check("GPL-3.0-only OR ISC"), ["ISC"]);
+  assert.deepEqual(check("MIT OR ISC"), ["MIT"]);
+  assert.deepEqual(check("MIT AND ISC"), ["MIT", "ISC"]);
+  assert.equal(check("MIT AND GPL-3.0-only"), false);
+  assert.equal(check("GPL-3.0-only AND MIT"), false);
+  assert.equal(check("MIT WITH LLVM-exception"), false);
+});
+
+test("parseAllowList refuses anything but a list of single identifiers", () => {
+  assert.deepEqual(parseAllowList('{"version":1,"allow":["MIT","ISC"]}'), new Set(["MIT", "ISC"]));
+  for (const text of [
+    "nope",
+    '{"version":2,"allow":[]}',
+    '{"version":1}',
+    '{"version":1,"allow":["MIT OR GPL-3.0-only"]}',
+    '{"version":1,"allow":[""]}',
+    '{"version":1,"allow":[7]}',
+    '{"version":1,"allow":["MIT","MIT"]}',
+  ]) {
+    assert.equal(typeof parseAllowList(text), "string", text);
+  }
+});
+
+test("judgeLicences refuses an unlisted, unreadable or disputed licence, and a needless entry", () => {
+  const allowed = new Set(["MIT", "ISC"]);
+  const pkg = (key: string, locked: unknown, installed: unknown = locked) => ({
+    key,
+    version: "1.0.0",
+    locked,
+    installed,
+  });
+  assert.deepEqual(
+    judgeLicences([pkg("node_modules/a", "MIT"), pkg("node_modules/b", "ISC")], allowed),
+    [],
+  );
+  const problems = judgeLicences(
+    [
+      pkg("node_modules/a", "MIT"),
+      pkg("node_modules/a/node_modules/@s/b", "GPL-3.0-only"),
+      pkg("node_modules/c", "SEE LICENSE IN LICENSE"),
+      pkg("node_modules/d", "MIT", "GPL-3.0-only"),
+      pkg("node_modules/e", undefined),
+      pkg("node_modules/f", { type: "MIT" }),
+    ],
+    allowed,
+  );
+  assert.deepEqual(problems, [
+    "@s/b@1.0.0: GPL-3.0-only is not allowed by licence-allow-list.json",
+    'c@1.0.0: "SEE LICENSE IN LICENSE" is not an SPDX licence expression',
+    'd@1.0.0: the lockfile says "MIT", the installed manifest "GPL-3.0-only"; each must name the same licence',
+    "e@1.0.0: the lockfile says undefined, the installed manifest undefined; each must name the same licence",
+    'f@1.0.0: the lockfile says {"type":"MIT"}, the installed manifest {"type":"MIT"}; each must name the same licence',
+    "licence-allow-list.json: no package needs ISC; delete it",
+  ]);
+  // A licence used only on the unused side of an OR does not keep its entry.
+  assert.deepEqual(judgeLicences([pkg("node_modules/a", "MIT OR ISC")], allowed), [
+    "licence-allow-list.json: no package needs ISC; delete it",
   ]);
 });

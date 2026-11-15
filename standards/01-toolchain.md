@@ -222,6 +222,38 @@ review; the straitjacket template's expiring waivers, mirrored across two scanne
 **Example:** [`tools/vulnerabilities.ts`](../examples/tools/vulnerabilities.ts),
 [`vulnerability-waivers.json`](../examples/vulnerability-waivers.json).
 
+### TC-11 (MUST) Every check fails on a locked package whose licence the project has not allowed. (PROPOSED)
+The allowed licences are one committed file of SPDX identifiers. The check judges every package in
+the lockfile, development tools included: a dependency moves from development to production with
+one edit, and a licence tool that leaves development dependencies out reports a clean tree (the
+Rust appendix records cargo-deny doing exactly that). It needs no network, so it is part of TC-5's
+command.
+- **A licence is an SPDX expression, judged as one.** `A OR B` passes when either is allowed,
+  `A AND B` only when both are, and `A WITH exception` only when that whole text is allowed. Text
+  that is not an expression (`SEE LICENSE IN ...`, `UNLICENSED`, an old `{ "type": ... }` object,
+  nothing at all) fails: a package that cannot be judged is replaced, or vendored with its licence
+  recorded (RP-4).
+- **The installed package's own manifest must name the same licence as the lockfile.** The
+  lockfile's copy is metadata a hand edit or a merge can change; the manifest comes from the
+  tarball whose integrity the install checked (TC-3).
+- **An allowed licence that no package needs fails too**, so the list never grows wider than the
+  tree, and a licence added for one package is removed with it. A licence relied on only through
+  the unchosen side of an `OR` does not count as needed.
+
+**Why:** a licence's obligations arrive through the lockfile, usually from a package nobody chose
+directly, and nothing in `package.json` shows them. Review of a new dependency (TC-7) sees the
+package added, not the licences of the forty it brings. The examples' tree held six licences when
+this check was added, and no file had listed them.
+
+**Enforced by:** Engineer — the check, tested by planting each refusal (an unlisted licence, a
+needless entry, a manifest that disagrees with the lockfile, a missing package).
+
+**Prior art:** cargo-deny's `[licenses]` check; the SPDX license expression grammar; the open
+source health model of the Software Improvement Group, which scores licence risk.
+
+**Example:** [`tools/licences.ts`](../examples/tools/licences.ts),
+[`licence-allow-list.json`](../examples/licence-allow-list.json).
+
 ## Open questions
 
 - **Formatter:** Prettier or Biome. Either works, since lint is typescript-eslint regardless;
