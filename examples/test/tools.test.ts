@@ -11,6 +11,14 @@ import { checkRejected, checkTypes, loadOptions } from "../tools/check-fixtures.
 import { addedLines, findCoercions } from "../tools/coercions.ts";
 import { escapeHidden, findHidden } from "../tools/hidden-chars.ts";
 import { decide, deserialize, parseTscOutput, serialize } from "../tools/tsc-baseline.ts";
+import {
+  buildGraph,
+  cycles,
+  isLayers,
+  judgeImports,
+  parseLayers,
+  specifiers,
+} from "../tools/imports.ts";
 import { allows, judgeLicences, parseAllowList, parseLicence } from "../tools/licences.ts";
 import {
   judgeAges,
@@ -554,4 +562,141 @@ test("registry fails a deprecated version, and any version of a deprecated packa
   assert.equal(long.length, 1);
   assert.ok(must(long[0], "finding").length < 220, "a long message is cut short");
   assert.deepEqual(judgeDeprecation([LOCKED], new Map()), []);
+});
+
+const LAYERS = parseLayers(
+  JSON.stringify({
+    version: 1,
+    layers: [
+      { name: "core", patterns: ["src/core.ts"], may: [] },
+      { name: "domain", patterns: ["src/*.ts"], may: ["core"] },
+      { name: "adapters", patterns: ["src/adapters/**"], may: ["domain", "core"] },
+      { name: "test", patterns: ["test/**"], may: ["core", "domain", "adapters"] },
+    ],
+  }),
+);
+
+function layers(): Parameters<typeof judgeImports>[1] {
+  assert.ok(isLayers(LAYERS), JSON.stringify(LAYERS));
+  return LAYERS;
+}
+
+test("imports reads every kind of import with the parser, and no strings that look like one", () => {
+  const text = [
+    'import a from "./a.ts";',
+    'import type { B } from "../b.ts";',
+    'export { c } from "./c.ts";',
+    'export * from "./d.ts";',
+    'import "./e.ts";',
+    'const f = await import("./f.ts");',
+    'type G = import("./g.ts").G;',
+    "const h = await import(name);",
+    'const notAnImport = `import "./x.ts";`;',
+    '// import "./y.ts";',
+    'import pkg from "valibot";',
+  ].join("\n");
+  assert.deepEqual(specifiers("src/z.ts", text), [
+    "./a.ts",
+    "../b.ts",
+    "./c.ts",
+    "./d.ts",
+    "./e.ts",
+    "./f.ts",
+    "./g.ts",
+    undefined,
+    "valibot",
+  ]);
+});
+
+test("imports refuses an import across layers by the file it reaches, not its text", () => {
+  const graph = buildGraph(
+    new Map([
+      ["src/core.ts", ""],
+      // A package is LN-9's to judge, even one whose name reads like a project path.
+      ["src/ids.ts", 'import "./core.ts"; import "adapters/http.ts";'],
+      ["src/adapters/http.ts", 'import "../ids.ts"; import "../core.ts"; import "./x.ts";'],
+      ["test/a.test.ts", 'import "../src/adapters/http.ts"; import "valibot";'],
+    ]),
+  );
+  assert.deepEqual(judgeImports(graph, layers()), []);
+  const bad = buildGraph(
+    new Map([
+      ["src/core.ts", 'import "./ids.ts";'],
+      ["src/ids.ts", 'import "./adapters/http.ts";'],
+      ["src/adapters/http.ts", 'import "../../test/a.test.ts";'],
+      ["test/a.test.ts", ""],
+      ["tools/x.ts", ""],
+      ["src/dynamic.ts", "await import(name);"],
+    ]),
+  );
+  assert.deepEqual(judgeImports(bad, layers()), [
+    "src/adapters/http.ts: adapters may not import test (test/a.test.ts)",
+    "src/core.ts: core may not import domain (src/ids.ts)",
+    "src/dynamic.ts: an import() whose specifier is not a literal cannot be judged",
+    "src/ids.ts: domain may not import adapters (src/adapters/http.ts)",
+    "tools/x.ts: in no layer of import-layers.json",
+  ]);
+});
+
+test("imports finds every cycle, across files and layers, and a file importing itself", () => {
+  const graph = new Map([
+    ["a", ["b"]],
+    ["b", ["c"]],
+    ["c", ["a", "d"]],
+    ["d", []],
+    ["e", ["e"]],
+    ["f", ["g", undefined]],
+    ["g", ["missing"]],
+  ]);
+  assert.deepEqual(cycles(graph), [["a", "b", "c"], ["e"]]);
+  assert.deepEqual(
+    cycles(
+      new Map([
+        ["x", ["y"]],
+        ["y", []],
+      ]),
+    ),
+    [],
+  );
+  // A long chain closed at the end: iterative, so no stack overflow.
+  const chain = new Map<string, string[]>();
+  for (let i = 0; i < 20_000; i += 1) chain.set(`n${String(i)}`, [`n${String((i + 1) % 20_000)}`]);
+  const [only] = cycles(chain);
+  assert.equal(must(only, "the chain's cycle").length, 20_000);
+  const within = buildGraph(
+    new Map([
+      ["src/ids.ts", 'import "./records.ts";'],
+      ["src/records.ts", 'import type { Id } from "./ids.ts";'],
+    ]),
+  );
+  assert.deepEqual(judgeImports(within, layers()), [
+    "an import cycle: src/ids.ts -> src/records.ts",
+  ]);
+});
+
+test("imports refuses a layer file that names no patterns, an unknown layer, or itself", () => {
+  const parse = (layers: readonly unknown[]) => parseLayers(JSON.stringify({ version: 1, layers }));
+  assert.deepEqual(parse([{ name: "a", patterns: [], may: [] }]), [
+    "import-layers.json layer 1: no patterns",
+  ]);
+  assert.deepEqual(parse([{ name: "a", patterns: ["x"], may: ["b"] }]), [
+    "import-layers.json: a may import b, no layer",
+  ]);
+  assert.deepEqual(parse([{ name: "a", patterns: ["x"], may: ["a"] }]), [
+    'import-layers.json: a names itself in "may"',
+  ]);
+  assert.deepEqual(
+    parse([
+      { name: "a", patterns: ["x"], may: [] },
+      { name: "a", patterns: ["y"], may: [] },
+    ]),
+    ["import-layers.json layer 2: a is named twice"],
+  );
+  assert.deepEqual(parse([{ name: "a", patterns: ["x"] }]), [
+    'import-layers.json layer 1: no "may" list (an empty one is allowed)',
+  ]);
+  assert.deepEqual(parseLayers("{"), ["import-layers.json is not JSON"]);
+  assert.deepEqual(parseLayers('{"version":2,"layers":[]}'), [
+    'import-layers.json is not {"version": 1, "layers": [...]}',
+  ]);
 });

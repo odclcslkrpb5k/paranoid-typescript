@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "layers": [
+    { "name": "result", "patterns": ["src/result.ts"], "may": [] },
+    { "name": "domain", "patterns": ["src/*.ts"], "may": ["result"] },
+    { "name": "adapters", "patterns": ["src/adapters/**"], "may": ["domain", "result"] },
+    { "name": "lint", "patterns": ["lint/**"], "may": [] },
+    { "name": "tools", "patterns": ["tools/**"], "may": [] },
+    {
+      "name": "test",
+      "patterns": ["test/**"],
+      "may": ["result", "domain", "adapters", "lint", "tools"]
+    }
+  ]
+}

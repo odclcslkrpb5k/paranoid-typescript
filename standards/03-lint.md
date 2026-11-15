@@ -196,6 +196,40 @@ TypeScript functions, names covariant arrays among the unsound places its checke
 
 **Example:** [`eslint.config.js`](../examples/eslint.config.js).
 
+### LN-12 (SHOULD) The project's import graph is judged whole: declared layers, and no cycles. (PROPOSED)
+LN-9 judges an import by its text, one file at a time, so it can refuse a driver by name, but a
+relative path reaches any file in the project. A check reads every file's imports with the
+TypeScript parser and resolves each relative one to the file it reaches. It judges that against
+one committed file of layers. Each layer is a set of path patterns plus the layers it may import;
+a file belongs to the first layer that matches it.
+- **A file in no layer fails**, so a new directory is placed deliberately, not by default.
+- **An import that reaches a layer its own may not import fails**, by the file reached, however
+  the path is spelled.
+- **Any import cycle fails**, within a layer too, and type-only imports count: a cycle of types
+  still ties two modules into one unit that cannot change apart.
+- **An `import()` whose specifier is not a literal fails**, since it cannot be judged.
+
+Static, type-only and re-exported imports, `import()` and `import("...")` types are all read.
+Package imports stay LN-9's.
+
+**Why:** in the examples, LN-9 confines foreign code to the adapters, yet domain code importing
+`./adapters/http.ts` passed both lint and `tsc` (ESLint 10.12.0, TypeScript 6.0.3). The adapter
+boundary held only because nobody had crossed it. Whole-graph checks are the one view an agent
+editing a few files cannot take for itself.
+
+**Enforced by:** Engineer — the check, in TC-5's command, tested by planting each refusal: domain
+reaching an adapter, a two-file cycle, a tool reaching domain, a non-literal `import()`, a file in
+no layer, and a layer file naming a layer that does not exist.
+
+**Prior art:** dependency-cruiser and `import/no-cycle` (eslint-plugin-import) for TypeScript;
+ArchUnit for Java; the architecture quality model of the Software Improvement Group, which
+measures component coupling from the dependency graph and checks a change against it before
+merge. The example uses the TypeScript compiler the project already has, so it adds no dependency
+(TC-7).
+
+**Example:** [`tools/imports.ts`](../examples/tools/imports.ts),
+[`import-layers.json`](../examples/import-layers.json).
+
 ## What lint cannot see
 
 A call that throws with no `throw` in sight (`new URL("bad")`, a library function), a combinator
