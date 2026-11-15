@@ -1,13 +1,15 @@
 /**
- * Fails on any version in the lockfile published more recently than `.npmrc`'s `min-release-age`
- * (TC-4). npm applies the age only to versions it resolves anew, so a fix command, a hand-edited
- * lockfile or a version locked before the setting existed all pass it; the publish dates are the
- * evidence, read here from the registry for every locked version.
+ * Judges every version in the lockfile against the registry's own record of it (TC-4).
  *
- *   node tools/release-age.ts    exit 0 clean, 3 findings, 2 the check itself could not run
+ * - Published more recently than `.npmrc`'s `min-release-age`: npm applies the age only to
+ *   versions it resolves anew, so a fix command, a hand-edited lockfile or a version locked before
+ *   the setting existed all pass it; the publish dates are the evidence.
+ * - Resolved from anywhere but the registry, since it has no publish date to judge (TC-4's
+ *   `allow-git=none`).
+ * - Deprecated, either the locked version itself or the package as a whole (its latest version):
+ *   the maintainer's own word that it should not be used.
  *
- * A version resolved from anywhere but the registry is a finding too, since it has no publish
- * date to judge (TC-4's `allow-git=none`).
+ *   node tools/registry.ts    exit 0 clean, 3 findings, 2 the check itself could not run
  */
 import { readFileSync } from "node:fs";
 
@@ -64,6 +66,63 @@ export function readLockfile(text: string): readonly Locked[] | undefined {
   return locked;
 }
 
+/** What the registry says about one package, cut to what the judgements read. */
+export interface RegistryRecord {
+  /** The registry's `time` object: version → ISO date. */
+  readonly time: Readonly<Record<string, unknown>>;
+  /** Each deprecated version's message. */
+  readonly deprecated: ReadonlyMap<string, string>;
+  /** The `latest` dist-tag, if there is one. */
+  readonly latest: string | undefined;
+}
+
+/** A registry document read into a `RegistryRecord`, or `undefined` if it is not one. */
+export function readRecord(body: unknown): RegistryRecord | undefined {
+  if (!isRecord(body) || !isRecord(body["time"]) || !isRecord(body["versions"])) return undefined;
+  const deprecated = new Map<string, string>();
+  for (const [version, manifest] of Object.entries(body["versions"])) {
+    if (!isRecord(manifest)) return undefined;
+    const message = manifest["deprecated"];
+    // npm un-deprecates a version by setting its message to "".
+    if (typeof message === "string" && message !== "") deprecated.set(version, message);
+    else if (message !== undefined && typeof message !== "string") return undefined;
+  }
+  const tags = body["dist-tags"];
+  const latest = isRecord(tags) && typeof tags["latest"] === "string" ? tags["latest"] : undefined;
+  return { time: body["time"], deprecated, latest };
+}
+
+/** Outside text, shown quoted and cut short so it can neither run on nor carry control codes. */
+function quote(text: string): string {
+  return JSON.stringify(text.length > 160 ? `${text.slice(0, 160)}...` : text);
+}
+
+/**
+ * Each locked version that is deprecated, or whose package is: its latest version is deprecated.
+ * A version missing from `records` is judged by `judgeAges`, which refuses it.
+ */
+export function judgeDeprecation(
+  locked: readonly Locked[],
+  records: ReadonlyMap<string, RegistryRecord>,
+): readonly string[] {
+  const problems: string[] = [];
+  for (const { name, version } of locked) {
+    const record = records.get(name);
+    if (record === undefined) continue;
+    const own = record.deprecated.get(version);
+    const whole = record.latest === undefined ? undefined : record.deprecated.get(record.latest);
+    if (own !== undefined) {
+      problems.push(`${name}@${version}: deprecated: ${quote(own)}`);
+    } else if (whole !== undefined) {
+      problems.push(
+        `${name}@${version}: the package is deprecated (its latest, ${String(record.latest)}): ` +
+          quote(whole),
+      );
+    }
+  }
+  return problems;
+}
+
 /**
  * Each locked version that is too new, has no publish date, or came from outside the registry.
  * `times` maps a package name to the registry's `time` object (version → ISO date).
@@ -99,12 +158,12 @@ export function judgeAges(
 }
 
 function fail(message: string): never {
-  console.error(`release-age: ${message}`);
+  console.error(`registry: ${message}`);
   process.exit(2);
 }
 
-/** The registry's `time` object for one package, or a reason it could not be read. */
-async function publishTimes(name: string): Promise<Readonly<Record<string, unknown>> | string> {
+/** The registry's record of one package, or a reason it could not be read. */
+async function fetchRecord(name: string): Promise<RegistryRecord | string> {
   try {
     const response = await fetch(`${REGISTRY}${name.replace("/", "%2f")}`, {
       headers: { accept: "application/json" },
@@ -113,8 +172,7 @@ async function publishTimes(name: string): Promise<Readonly<Record<string, unkno
     });
     if (!response.ok) return `HTTP ${String(response.status)}`;
     const body: unknown = await response.json();
-    if (!isRecord(body) || !isRecord(body["time"])) return "no time object";
-    return body["time"];
+    return readRecord(body) ?? "not a package document";
   } catch (error) {
     return error instanceof Error ? error.name : "unknown error";
   }
@@ -136,18 +194,22 @@ if (import.meta.main) {
   if (locked.length === 0) fail("package-lock.json lists no packages");
 
   const names = [...new Set(locked.map((entry) => entry.name))];
-  const times = new Map<string, Readonly<Record<string, unknown>>>();
+  const records = new Map<string, RegistryRecord>();
   // A few at a time: the registry is shared, and one package's document can run to 20 MB.
   for (let i = 0; i < names.length; i += 8) {
     const batch = names.slice(i, i + 8);
-    const results = await Promise.all(batch.map(publishTimes));
+    const results = await Promise.all(batch.map(fetchRecord));
     results.forEach((result, j) => {
       const name = batch[j] ?? "";
       if (typeof result === "string") fail(`could not read ${name} from the registry (${result})`);
-      times.set(name, result);
+      records.set(name, result);
     });
   }
-  const problems = judgeAges(locked, times, new Date(), minDays);
+  const times = new Map([...records].map(([name, record]) => [name, record.time]));
+  const problems = [
+    ...judgeAges(locked, times, new Date(), minDays),
+    ...judgeDeprecation(locked, records),
+  ];
   for (const problem of problems) console.log(problem);
   process.exit(problems.length === 0 ? 0 : 3);
 }

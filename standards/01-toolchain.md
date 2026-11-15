@@ -96,6 +96,16 @@ policy, the dates are the evidence. In a public template, `aube audit --fix=upda
 release 26 days old under a 30-day minimum. On npm 11.19.1, `min-release-age=7` refused an exact
 pin 4 days old (`notarget`) and resolved a range to the newest version at least 7 days old.
 
+The same reading of the registry fails a locked version the registry marks deprecated, and any
+version of a package whose latest version is deprecated: that is the maintainer's own word that it
+should not be used, and it often comes before any advisory. glob 7.2.3's says its old versions
+"contain widely publicized security vulnerabilities". A deprecated package deep in the tree that
+cannot yet be upgraded is replaced with an `overrides` entry, which is a committed decision (on
+npm 11.19.1, `"overrides": { "glob": "10.4.5" }` locked glob 10.4.5 under rimraf 3.0.2).
+The time since a package's last release does not measure abandonment, and is not checked: in the
+examples' tree, 29 of 106 packages had no release in three years and 25 none in five. All were
+small, finished packages that ESLint pins, so a threshold would fail a quarter of a healthy tree.
+
 Where the package manager can refuse a release whose publisher's trust fell, turn it on. On pnpm
 12.16.1, `trustPolicy: no-downgrade` refused `chokidar@4.0.3` as a "high-risk trust downgrade
 (possible package takeover)"; an exception goes in `trustPolicyExclude` pinned to one exact
@@ -112,11 +122,11 @@ maintainer accounts with malicious code, and a self-replicating worm spread thro
 scripts. Both reached users through versions installed within hours of publication, before anyone
 had noticed them.
 
-**Enforced by:** Engineer — package manager configuration, committed, and the lockfile's publish
-dates checked against it.
+**Enforced by:** Engineer — package manager configuration, committed, and the lockfile's
+versions checked against the registry: publish date, source and deprecation.
 
 **Example:** [`.npmrc`](../examples/.npmrc),
-[`tools/release-age.ts`](../examples/tools/release-age.ts).
+[`tools/registry.ts`](../examples/tools/registry.ts).
 
 ### TC-5 (MUST) One command runs every check, and CI runs exactly that command.
 Formatting check, lint, type check (`tsc --noEmit`) and tests, in one script (`npm run check`), run

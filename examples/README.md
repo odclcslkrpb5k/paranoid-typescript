@@ -34,7 +34,7 @@ does not yet support 7.0); tests use `node:test`, valibot and fast-check.
 | [`tools/hidden-chars.ts`](tools/hidden-chars.ts)                                                                   | literal hidden characters found and escaped                                                                              | CD-7                       |
 | [`tools/vulnerabilities.ts`](tools/vulnerabilities.ts), [`vulnerability-waivers.json`](vulnerability-waivers.json) | the lockfile against known advisories; waivers that expire, and none for a malicious package                             | TC-10                      |
 | [`tools/licences.ts`](tools/licences.ts), [`licence-allow-list.json`](licence-allow-list.json)                     | every locked licence, read from lockfile and package, against the allow-list                                             | TC-11                      |
-| [`tools/release-age.ts`](tools/release-age.ts)                                                                     | every locked version's publish date against the minimum release age                                                      | TC-4                       |
+| [`tools/registry.ts`](tools/registry.ts)                                                                           | every locked version's publish date, source and deprecation, from the registry                                           | TC-4                       |
 | [`Dockerfile`](Dockerfile), [`compose.yaml`](compose.yaml)                                                         | the environment as files: runtime, git and packages pinned; the check with no network                                    | TC-9, TC-1, TS-1, TS-8     |
 | [`../.github/workflows/examples.yml`](../.github/workflows/examples.yml)                                           | CI running the same compose service                                                                                      | TC-5, TC-9                 |
 | [`test/cli.test.ts`](test/cli.test.ts)                                                                             | the git-driven tools run end to end in throwaway repositories                                                            | BD-2, CD-7                 |
@@ -57,7 +57,8 @@ characters. `--build` makes the run check the tree as it is now, never an older 
     docker compose run --build --rm supply-chain
 
 judges the lockfile against osv-scanner's advisories and the waivers (TC-10), and the publish date
-of every version in it against `.npmrc`'s `min-release-age` (TC-4). It is the one service with a
+of every version in it against `.npmrc`'s `min-release-age`, and refuses a deprecated version or
+package (TC-4). It is the one service with a
 network, so it runs beside the check rather than inside it; CI runs both, and runs this one daily
 as well.
 

@@ -12,7 +12,13 @@ import { addedLines, findCoercions } from "../tools/coercions.ts";
 import { escapeHidden, findHidden } from "../tools/hidden-chars.ts";
 import { decide, deserialize, parseTscOutput, serialize } from "../tools/tsc-baseline.ts";
 import { allows, judgeLicences, parseAllowList, parseLicence } from "../tools/licences.ts";
-import { judgeAges, readLockfile, readMinAge } from "../tools/release-age.ts";
+import {
+  judgeAges,
+  judgeDeprecation,
+  readLockfile,
+  readMinAge,
+  readRecord,
+} from "../tools/registry.ts";
 import { judge, parseReport, parseWaivers } from "../tools/vulnerabilities.ts";
 import { must } from "./support/assert.ts";
 import "./support/leaks.ts";
@@ -346,7 +352,7 @@ const LOCKED = {
   resolved: "https://registry.npmjs.org/@scope/pkg/-/pkg-1.2.3.tgz",
 } as const;
 
-test("release-age reads min-release-age only as whole days, and only when set", () => {
+test("registry reads min-release-age only as whole days, and only when set", () => {
   assert.equal(readMinAge("save-exact=true\nmin-release-age=7\n"), 7);
   assert.equal(readMinAge(" min-release-age = 14 "), 14);
   for (const bad of ["", "min-release-age=", "min-release-age=0", "min-release-age=7d"]) {
@@ -354,7 +360,7 @@ test("release-age reads min-release-age only as whole days, and only when set", 
   }
 });
 
-test("release-age reads every installed lockfile entry, nested and scoped", () => {
+test("registry reads every installed lockfile entry, nested and scoped", () => {
   const lock = JSON.stringify({
     lockfileVersion: 3,
     packages: {
@@ -372,7 +378,7 @@ test("release-age reads every installed lockfile entry, nested and scoped", () =
   assert.equal(readLockfile(noVersion), undefined);
 });
 
-test("release-age passes a version as old as the minimum, and fails one a moment younger", () => {
+test("registry passes a version as old as the minimum, and fails one a moment younger", () => {
   const at = (iso: string) => new Map([["@scope/pkg", { "1.2.3": iso }]]);
   assert.deepEqual(judgeAges([LOCKED], at("2026-11-02T12:00:00Z"), NOW, 7), []);
   assert.deepEqual(judgeAges([LOCKED], at("2026-11-02T12:00:01Z"), NOW, 7), [
@@ -380,7 +386,7 @@ test("release-age passes a version as old as the minimum, and fails one a moment
   ]);
 });
 
-test("release-age fails a version with no publish date, or from outside the registry", () => {
+test("registry fails a version with no publish date, or from outside the registry", () => {
   assert.deepEqual(judgeAges([LOCKED], new Map(), NOW, 7), [
     "@scope/pkg@1.2.3: the registry gives no publish date",
   ]);
@@ -499,4 +505,53 @@ test("judgeLicences refuses an unlisted, unreadable or disputed licence, and a n
   assert.deepEqual(judgeLicences([pkg("node_modules/a", "MIT OR ISC")], allowed), [
     "licence-allow-list.json: no package needs ISC; delete it",
   ]);
+});
+
+test("registry reads each deprecated version's message, and the latest tag", () => {
+  const record = must(
+    readRecord({
+      time: { "1.0.0": "2020-01-01T00:00:00Z" },
+      "dist-tags": { latest: "2.0.0" },
+      versions: {
+        "1.0.0": { deprecated: "use 2" },
+        "1.1.0": { deprecated: "" },
+        "2.0.0": {},
+      },
+    }),
+    "record",
+  );
+  assert.deepEqual([...record.deprecated], [["1.0.0", "use 2"]]);
+  assert.equal(record.latest, "2.0.0");
+  assert.equal(must(readRecord({ time: {}, versions: {} }), "bare record").latest, undefined);
+  for (const bad of [
+    null,
+    { time: {} },
+    { versions: {} },
+    { time: {}, versions: { "1.0.0": "x" } },
+    { time: {}, versions: { "1.0.0": { deprecated: true } } },
+  ]) {
+    assert.equal(readRecord(bad), undefined, JSON.stringify(bad));
+  }
+});
+
+test("registry fails a deprecated version, and any version of a deprecated package", () => {
+  const record = (deprecated: Record<string, string>, latest = "2.0.0") => ({
+    time: {},
+    deprecated: new Map(Object.entries(deprecated)),
+    latest,
+  });
+  const at = (r: ReturnType<typeof record>) => new Map([["@scope/pkg", r]]);
+  assert.deepEqual(judgeDeprecation([LOCKED], at(record({}))), []);
+  assert.deepEqual(judgeDeprecation([LOCKED], at(record({ "1.0.0": "old" }))), []);
+  assert.deepEqual(judgeDeprecation([LOCKED], at(record({ "1.2.3": 'a "bad"\nrelease' }))), [
+    '@scope/pkg@1.2.3: deprecated: "a \\"bad\\"\\nrelease"',
+  ]);
+  assert.deepEqual(judgeDeprecation([LOCKED], at(record({ "2.0.0": "gone" }))), [
+    '@scope/pkg@1.2.3: the package is deprecated (its latest, 2.0.0): "gone"',
+  ]);
+  assert.deepEqual(judgeDeprecation([LOCKED], at(record({ "2.0.0": "gone" }, "1.2.3"))), []);
+  const long = judgeDeprecation([LOCKED], at(record({ "1.2.3": "x".repeat(500) })));
+  assert.equal(long.length, 1);
+  assert.ok(must(long[0], "finding").length < 220, "a long message is cut short");
+  assert.deepEqual(judgeDeprecation([LOCKED], new Map()), []);
 });
