@@ -215,6 +215,12 @@ From security:
 - **The TC39 Type Annotations proposal**: the direction of travel that makes erasable-only
   TypeScript (TC-2) a safe bet.
 
+## Contributing
+
+Found a rule that is wrong, missing or too weak? Open an issue with the proposal form: the claim,
+the versions, the smallest reproduction and what you observed. Every claim is reproduced before it
+lands. [CONTRIBUTING.md](CONTRIBUTING.md) says what a proposal needs and what happens to it.
+
 ## Status
 
 Started 2026-10-14. The standard is deliberately mutable: it changes as projects built under it

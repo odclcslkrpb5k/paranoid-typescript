@@ -1,0 +1,70 @@
+name: Proposal
+description: Propose a new rule, a change to a rule, or a correction, with the evidence for it.
+title: "<rule ID or 'new rule'>: <one sentence>"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read [CONTRIBUTING.md][guide] first. This issue is public: describe what happened,
+        never where. No employer, client, project or people's names, no internal ticket or PR
+        numbers, hostnames or account ids, no secrets and no data about real people.
+
+        [guide]: https://github.com/odclcslkrpb5k/paranoid-typescript/blob/main/CONTRIBUTING.md
+  - type: input
+    id: rule
+    attributes:
+      label: Rule
+      description: The rule's ID (TC-4, BD-1), or "new rule".
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of change
+      options:
+        - A new rule
+        - Tighten a rule, or add an Engineer control to it
+        - Weaken or remove a rule (a MUST needs the maintainer's agreement)
+        - Correct a fact, a version or an example
+        - Clarify wording only
+    validations:
+      required: true
+  - type: textarea
+    id: claim
+    attributes:
+      label: The claim
+      description: >-
+        What the standard should say, and for a new rule its level (MUST, SHOULD, MAY) and its rung
+        on the ladder (Eliminate, Substitute, Engineer, Administer, Protect). For an Administer
+        rule, the Engineer control that is missing.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: >-
+        Exact tool and runtime versions, the smallest file or command that shows it, and what you
+        observed: the output and the exit status. Leave this empty only for a wording change.
+      render: text
+  - type: textarea
+    id: incident
+    attributes:
+      label: The incident
+      description: >-
+        If something broke: what kind of system, what went wrong and how it was found, described by
+        its shape.
+  - type: textarea
+    id: prior-art
+    attributes:
+      label: Prior art
+      description: An existing standard, paper or tool this matches or comes from, if any.
+  - type: checkboxes
+    id: public
+    attributes:
+      label: Public-safe
+      options:
+        - label: >-
+            This issue names no employer, client, private project or person, carries no internal
+            identifier, secret or personal data, and its evidence reproduces in a public setting.
+          required: true
