@@ -81,3 +81,58 @@ that name paths (ER-3) work unchanged.
 
 **Enforced by:** Administer. Missing Engineer control: a test that fails on a missing required path
 or an unexpected top-level directory, with the project's deliberate absences listed.
+
+### RP-8 (MUST) The repository host's settings that a control relies on are recorded in a committed file, and a check fails when the live settings differ. (PROPOSED)
+Some Engineer controls in this standard live on the host, not in the tree: SH-6's block on
+force-pushes, a project's required reviews, the workflow token's permissions. A settings page is
+edited by hand, makes no commit and leaves no diff, so a control can silently become nothing while
+every document still claims it. The file records each such setting. On GitHub that means:
+- rulesets, or classic branch protection: required reviews, code-owner review, conversation
+  resolution, stale-approval dismissal, last-push approval, merge methods, deletion and
+  force-push blocks, bypass actors;
+- the merge settings;
+- the Actions policy and the workflow token's permissions, including whether workflows may
+  approve pull requests;
+- the security features;
+- in a private repository, the access list. In a public one, leave it out or record it by team:
+  the logins of people who can write are personal data, and a list of targets.
+
+The check:
+- reads the live settings through the host's API, read-only;
+- normalizes them, dropping URLs and each ruleset's own id and timestamps, but keeping nested ids,
+  since a required reviewer is named by one;
+- compares the result with the file by content;
+- exits 0 on a match, 1 on drift (printing the difference), and 2 when it could not run.
+
+Some fields are shown only to an administrator. If one is missing, the check could not run; that
+is never drift, and never a pass. A `--write` mode regenerates the file, for the change that
+records a deliberate edit. A scheduled job runs the check, since a settings change makes no commit
+and triggers nothing; its token can read the administrator-only fields and change nothing.
+
+Measured on gh 2.46.0:
+- `gh api` prints an HTTP error's JSON body on stdout, so a check that only tests the output reads
+  an error as data. Judge the exit status first, then the shape.
+- A branch with no classic protection answers 404 `Branch not protected` (exit 1), which is a
+  state, not a failure.
+- `vulnerability-alerts` answers 204 with an empty body when on, and 404 when off.
+- `security_and_analysis` is absent from the repository object for a reader who is not an
+  administrator.
+
+**Why:** on one team's repository, a hand edit meant to turn off two ruleset settings (stale
+approval dismissal and last-push approval) also turned off required conversation resolution.
+Nobody meant that. The project's decision log, and the agents' shipping instructions that told
+every session an unresolved thread blocks the merge, still said it held. A review agent found it
+three hours later by reading the ruleset back through the API. The same day, the same reading
+found an automated review on every push that had been in the ruleset all along and was recorded
+nowhere.
+
+**Enforced by:** Engineer — the check in a scheduled job, tested against recorded API answers
+through a fake client, so the test never reaches the host. Until the job exists: Administer, with
+the ship cycle (SH-2) running the check and reporting drift. Missing Engineer control, until then:
+the scheduled job itself.
+
+**Prior art:** configuration as code for repository settings: the Probot Settings app
+(`.github/settings.yml`) and Terraform's GitHub provider (`github_repository_ruleset`,
+`github_branch_protection`). Both apply settings rather than check them; either can be the record,
+and a `plan` that shows changes is the same drift signal. The rule asks only that drift fails
+something: a tool that applies settings needs credentials that can change them.

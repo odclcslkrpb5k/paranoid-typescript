@@ -81,8 +81,8 @@ step, either a notes diff or an explicit "nothing durable".
 did not run.
 
 **Enforced by:** Engineer for force-pushes and history rewrites: branch protection on the remote,
-where available. Hooks cannot be made unskippable (`--no-verify`), so SH-10's gate re-runs every
-check a hook makes.
+where available, recorded and checked for drift (RP-8). Hooks cannot be made unskippable
+(`--no-verify`), so SH-10's gate re-runs every check a hook makes.
 
 ### SH-7 (MUST) Report what was checked, not "it works".
 Name the tests that ran, what was skipped and why, and which live systems were or were not
