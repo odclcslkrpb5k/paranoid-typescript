@@ -182,10 +182,22 @@ process, so under `--permission` without `--allow-child-process` it fails with
 flags as production; then keep every teardown assertion in `afterEach` (TS-3), since a failing
 top-level `after` hook in that mode exits 0.
 
+A child receives the grants through `NODE_OPTIONS`, which Node fills with the parent's permission
+flags whatever environment the caller passes (Node 24.22.0, 25.2.1 and 26.13.0).
+`spawnSync("sh", ["-c", "echo $NODE_OPTIONS"], { env: { PATH } })` printed them, and a caller's own
+`NODE_OPTIONS` came back with them appended. A `node --permission --allow-fs-read=/tmp` started
+from that shell could read the parent's directory as well as `/tmp`: it held the union of both
+sets. So a shell test runner that a Node tool starts runs the suite under the tool's grants added
+to its own, and a test meant to prove production's grants passes with grants production lacks. The
+runner unsets `NODE_OPTIONS` before it parses or runs anything, and a test starts it from under a
+granting parent and expects the refusal production would give, which kills a mutant that keeps the
+variable (TS-5).
+
 **Why:** a compromised or confused process can then reach only what it was meant to. The grant
 lists drift from the mounts unless something compares them.
 
-**Enforced by:** Engineer — the permission flags and the contract test.
+**Enforced by:** Engineer — the permission flags, the contract test, and a test runner that
+starts from an empty `NODE_OPTIONS`.
 
 ## Hosts
 
