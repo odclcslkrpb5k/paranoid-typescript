@@ -67,6 +67,8 @@ named_by="$state/$key.path"
 # so another run's mutant would be judged as part of this one; and none while a ship step (timed,
 # which holds this lock shared) is reading the tree.
 exec 8>>"$state/lock" || die "cannot open the lock in $state"
+command -v flock >/dev/null ||
+  die "flock is not installed (util-linux); it keeps a step and a mutant apart"
 flock -n 8 || die "another mutate or a ship step is running in this repository"
 # A run that never finished left its copy - of this file or any other, whose mutant the command
 # would read: harmless if that file is intact, otherwise the only original.

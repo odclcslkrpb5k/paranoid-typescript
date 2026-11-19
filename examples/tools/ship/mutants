@@ -39,6 +39,8 @@ records="$git_dir/ship-mutants"
 hold() {
   { mkdir -p "$git_dir/ship-mutate" && exec 9>>"$git_dir/ship-mutate/lock"; } ||
     die "cannot open the lock in $git_dir/ship-mutate"
+  command -v flock >/dev/null ||
+    die "flock is not installed (util-linux); it keeps a step and a mutant apart"
   flock -s -n 9 || die "a mutate run is under way; try again once it ends"
 }
 # Sets variable $1 to field $3 of the record at $2, read whole: a command substitution would strip

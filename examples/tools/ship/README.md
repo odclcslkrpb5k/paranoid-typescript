@@ -8,7 +8,9 @@ runner of TS-5 and the comment check of CD-1.
 
 It comes from the ship tools of several projects that adopted the standard, merged and hardened
 under review; the tests in [`test/ship/`](../../test/ship/) pin each guarantee. It is written for a
-project at the root of its own repository, whose workstation has Docker and no Node (TC-9). Here it
+project at the root of its own repository, whose workstation has Docker and no Node (TC-9). The
+scripts themselves run on the workstation, and need bash, git and `flock` from util-linux, which
+macOS does not ship. Here it
 lives inside the examples, whose tests run it in throwaway repositories.
 
 ## A ship

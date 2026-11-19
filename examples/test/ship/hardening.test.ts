@@ -6,7 +6,15 @@
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { heldLocally, HOOKS, nothingShipped, Scratch, SCRIPTS, SHIP } from "./scratch.ts";
@@ -426,4 +434,32 @@ test("run without -p, an exported CDPATH still cannot send the scripts' own path
   });
   assert.equal(out.code, 0, out.stderr);
   assert.deepEqual(s.log(s.origin), ["Ship it", "first"]);
+});
+
+test("with no flock installed, the scripts that lock say so, rather than that a lock is held", (t) => {
+  const s = Scratch.create(t);
+  // Every program on PATH but flock, as on a Mac.
+  const bare = path.join(s.dir, "no-flock");
+  mkdirSync(bare);
+  const seen = new Set<string>(["flock"]);
+  for (const dir of (process.env["PATH"] ?? "/usr/bin:/bin").split(":")) {
+    if (!existsSync(dir)) continue;
+    // The first directory on PATH wins, as it would for the shell.
+    for (const name of readdirSync(dir).filter((n) => !seen.has(n))) {
+      seen.add(name);
+      symlinkSync(path.join(dir, name), path.join(bare, name));
+    }
+  }
+  const extra = { PATH: `${s.bin}:${bare}` };
+  s.write("guard.txt", "x\n");
+  for (const [script, args] of [
+    ["timed", ["step", "true"]],
+    ["mutate", ["guard.txt", "x", "y", "a reason", "--", "true"]],
+    ["mutants"],
+  ] as const) {
+    const out = s.run(script, args, extra);
+    assert.equal(out.code, 2, `${script}: ${out.stderr}`);
+    assert.match(out.stderr, /flock is not installed/, script);
+    assert.doesNotMatch(out.stderr, /in progress|under way|is running/, script);
+  }
 });

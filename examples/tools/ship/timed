@@ -101,6 +101,9 @@ hash_tree() {
 mutants="$git_dir/ship-mutate"
 { mkdir -p "$mutants" && exec 9>>"$mutants/lock"; } ||
   { echo "timed: cannot open the lock in $mutants" >&2; exit 2; }
+# Checked first: flock's own "command not found" would read below as a held lock.
+command -v flock >/dev/null ||
+  { echo "timed: flock is not installed (util-linux); it keeps a step and a mutant apart" >&2; exit 2; }
 flock -s -n 9 ||
   { echo "timed: a mutate run is in progress; a step now would read its mutant" >&2; exit 2; }
 for kept in "$mutants"/*.orig; do
