@@ -17,8 +17,11 @@ usage="usage: run-node [--deps] <script> [args...]"
 deps=()
 if [ "${1:-}" = --deps ]; then
   shift
-  # An anonymous volume, which Docker fills from the image's own /repo/node_modules.
+  # An anonymous volume, which Docker fills from the image's own /repo/node_modules. Its mount
+  # point must already exist in the tree: Docker cannot create it inside a read-only bind mount, so
+  # in a fresh clone the container would not start.
   deps=(-v /repo/node_modules)
+  mkdir -p node_modules
 fi
 [ $# -ge 1 ] || { echo "$usage" >&2; exit 2; }
 

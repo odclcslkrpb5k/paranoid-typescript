@@ -4,7 +4,7 @@
  * which every TypeScript check runs: in the project's image on the workstation, or SHIP_NODE here.
  */
 import assert from "node:assert/strict";
-import { chmodSync, readFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { LEAK, Scratch } from "./scratch.ts";
@@ -124,10 +124,13 @@ test("a tree the gate cannot index is a failure, never an empty pass", (t) => {
 test("run-node runs the image with no network and the tree read-only, or SHIP_NODE if set", (t) => {
   const s = Scratch.create(t);
   const id = (flag: string): string => s.exec("id", [flag]).stdout.trim();
+  // A fresh clone has no node_modules/, and Docker cannot make the mount point in a read-only tree.
+  assert.equal(existsSync(path.join(s.work, "node_modules")), false);
   const out = s.run("run-node", ["--deps", "tools/ship/check-comments.ts", "a b"], {
     SHIP_NODE: "",
   });
   assert.equal(out.code, 0, out.stderr);
+  assert.equal(statSync(path.join(s.work, "node_modules")).isDirectory(), true);
   assert.equal(
     readFileSync(path.join(s.dir, "calls"), "utf8"),
     [
