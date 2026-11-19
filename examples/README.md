@@ -83,6 +83,12 @@ way, for example `docker compose run --build --rm check npm run coercions`.
   prose inside a string. It is a list for a reviewer, not a verdict.
 - `tsc-baseline`'s command line is not tested end to end; its decisions are tested as pure
   functions.
+- The check image cannot be built from a git worktree. There `.git` is a file naming a directory
+  inside the main clone's git directory, which the image does not hold, so every check that reads
+  git stops with exit 2 ("not a git repository"); it fails, never passes. Run the checks from a
+  clone. A project whose checks mount the tree instead can mount
+  `git rev-parse --path-format=absolute --git-common-dir` read-only at the same path, and needs
+  git's `safe.directory` for it.
 
 ## License
 
