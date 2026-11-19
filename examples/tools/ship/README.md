@@ -81,8 +81,8 @@ never answered, an equivalence whose files have changed, a survivor whose code h
 
 ## Known limits
 
-- `.dockerignore` must hold plain names: the gate cannot read a pattern, so it fails on one rather
-  than excusing anything.
+- `.dockerignore` may hold plain names, a plain prefix and `*` (`.env.*`), and `!` before a plain
+  name; the gate cannot read any other pattern, so it fails on one rather than excusing anything.
 - A name in `.dockerignore` excuses every ignored file under it, so it names only what no test
   reads, whether through the image or through a mount such as `run-node`'s. The gate cannot tell
   which those are.

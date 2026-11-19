@@ -63,7 +63,34 @@ test("an ignored file the check container would read fails the gate, by name", (
   p.write(".dockerignore", "ignored.txt\n*.token\n");
   const pattern = p.run("gate");
   assert.equal(pattern.code, 1);
-  assert.match(pattern.stderr, /line 2 of \.dockerignore is not a plain name/);
+  assert.match(pattern.stderr, /line 2 of \.dockerignore is not a form this gate can read/);
+  for (const bare of ["*", "/*", "a/b*", "!*.env"]) {
+    const b = Scratch.create(t);
+    b.write(".dockerignore", `ignored.txt\n${bare}\n`);
+    assert.match(b.run("gate").stderr, /line 2 of \.dockerignore is not a form/, bare);
+  }
+});
+
+test("the gate reads a .dockerignore prefix and a ! exception as Docker does, the last line deciding", (t) => {
+  const files = (s: Scratch): void => {
+    s.write(".gitignore", ".env*\n");
+    for (const name of [".env.production", ".env.", ".env.d/inner", ".env.example", ".envrc"]) {
+      s.write(name, "x\n");
+    }
+  };
+  // Docker 29.8.1 left out .env.production, .env. and .env.d/, and kept .env.example and .envrc.
+  const s = Scratch.create(t);
+  files(s);
+  s.write(".dockerignore", ".env.*\n!.env.example\n");
+  const kept = s.run("gate");
+  assert.equal(kept.code, 1);
+  assert.match(kept.stderr, /would not carry:\n {2}\.env\.example\n {2}\.envrc\n$/);
+  // The other order: the prefix, last, takes .env.example out again.
+  const o = Scratch.create(t);
+  files(o);
+  o.write(".dockerignore", "!.env.example\n.env.*\n.envrc\n");
+  const out = o.run("gate");
+  assert.equal(out.code, 0, out.stderr);
 });
 
 test("the gate judges what a --no-verify commit added since origin, hook or no hook", (t) => {

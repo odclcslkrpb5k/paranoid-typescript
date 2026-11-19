@@ -46,28 +46,45 @@ fi
 
 # The check container is built from the whole work tree, ignored files included, less what
 # .dockerignore names; a commit carries none of them, so a test could pass on a file that never
-# ships. Every ignored file is listed, and only those under a root-level name .dockerignore excludes
-# are let through. A .dockerignore line that is a pattern rather than a plain name cannot be read
-# that simply, so it fails the gate rather than excusing anything.
-declare -A excluded=()
+# ships. Every ignored file is listed, and only those under a root-level entry .dockerignore excludes
+# are let through. Three forms of line are read, as Docker reads them, the last matching line
+# deciding: a plain name (`.env`), a plain prefix and `*` (`.env.*`, whose `*` never crosses a
+# `/`), and `!` before a plain name, which puts that entry back. Any other line cannot be read that
+# simply, so it fails the gate rather than excusing anything; a bare `*` among them.
+rules=()
 if [ -f .dockerignore ]; then
   n=0
   while IFS= read -r line || [ -n "$line" ]; do
     n=$((n + 1))
     [[ -z "$line" || "$line" == \#* ]] && continue
     if [[ "$line" =~ ^/?([A-Za-z0-9._-]+)/?$ ]]; then
-      excluded["${BASH_REMATCH[1]}"]=1
+      rules+=("- ${BASH_REMATCH[1]}")
+    elif [[ "$line" =~ ^/?([A-Za-z0-9._-]+)\*$ ]]; then
+      rules+=("* ${BASH_REMATCH[1]}")
+    elif [[ "$line" =~ ^!/?([A-Za-z0-9._-]+)/?$ ]]; then
+      rules+=("+ ${BASH_REMATCH[1]}")
     else
-      echo "gate: line $n of .dockerignore is not a plain name this gate can read" >&2
+      echo "gate: line $n of .dockerignore is not a form this gate can read" >&2
       failed=1
     fi
   done <.dockerignore
 fi
+# Whether .dockerignore keeps the root-level entry $1 out of the build.
+excluded() {
+  local rule out=no
+  for rule in "${rules[@]}"; do
+    case "$rule" in
+      "- $1" | "+ $1") [ "${rule:0:1}" = - ] && out=yes || out=no ;;
+      "* "*) [[ "$1" == "${rule:2}"* ]] && out=yes ;;
+    esac
+  done
+  [ "$out" = yes ]
+}
 if git ls-files -z --others --ignored --exclude-standard >"$listing"; then
   read_by_tests=""
   count=0
   while IFS= read -r -d '' name; do
-    [ -z "${excluded["${name%%/*}"]+x}" ] || continue
+    ! excluded "${name%%/*}" || continue
     count=$((count + 1))
     # The first few are enough to act on; a whole ignored directory could run to thousands.
     [ "$count" -gt 20 ] || read_by_tests+="  $name"$'\n'
