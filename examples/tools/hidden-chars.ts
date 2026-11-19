@@ -8,9 +8,16 @@
  *
  * `--fix` writes the escape wherever the character is; that is right inside a string, regex or
  * comment, and a syntax error elsewhere, so review the diff it makes.
+ *
+ * Every listed file is read, whatever its name: a host script with no extension runs outside every
+ * container, with the developer's credentials (TC-9). A file holding a NUL byte is binary and is
+ * passed over; one that has none but is not UTF-8 cannot be judged, so it is a finding. Only regular
+ * files are read, and none reached through a symlink, so `--fix` never writes outside the tree.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { isUtf8 } from "node:buffer";
+import { closeSync, constants, lstatSync, openSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 
 /**
  * No-break and zero-width spaces, the soft hyphen, directional marks and embeddings (the "Trojan
@@ -49,6 +56,30 @@ export function escapeHidden(text: string): string {
   });
 }
 
+/** What one listed path holds: text to judge, bytes that are not UTF-8, or nothing to judge. */
+export type Listed =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "not-utf8" }
+  | { readonly kind: "skip" };
+
+/**
+ * Reads a path git listed, relative to the current directory. Skipped: a path that is gone, is not
+ * a regular file (a symlink, or a nested repository listed as `name/`), or has a symlink among its
+ * directories (a tracked file whose directory was later replaced by a link), and a binary file.
+ */
+export function readListed(file: string): Listed {
+  const parts = file.split("/").filter((part) => part !== "");
+  for (let depth = 1; depth <= parts.length; depth += 1) {
+    const stat = lstatSync(path.join(...parts.slice(0, depth)), { throwIfNoEntry: false });
+    if (stat === undefined) return { kind: "skip" };
+    if (depth < parts.length ? stat.isSymbolicLink() : !stat.isFile()) return { kind: "skip" };
+  }
+  const bytes = readFileSync(file);
+  if (bytes.includes(0)) return { kind: "skip" };
+  if (!isUtf8(bytes)) return { kind: "not-utf8" };
+  return { kind: "text", text: bytes.toString("utf8") };
+}
+
 if (import.meta.main) {
   const fix = process.argv.includes("--fix");
   let files: string[];
@@ -61,19 +92,30 @@ if (import.meta.main) {
       encoding: "utf8",
     })
       .split("\0")
-      .filter((name) => /\.(?:[cm]?[jt]s|tsx|json|md|sql|ya?ml)$/.test(name));
+      .filter((name) => name !== "");
   } catch {
     console.error("hidden-chars: could not list files with git");
     process.exit(2);
   }
   let total = 0;
   for (const file of files) {
-    // A tracked file deleted in the working tree has nothing to scan.
-    if (!existsSync(file)) continue;
-    let text = readFileSync(file, "utf8");
+    const listed = readListed(file);
+    if (listed.kind === "skip") continue;
+    if (listed.kind === "not-utf8") {
+      total += 1;
+      console.log(`${file}: not UTF-8, so it cannot be judged`);
+      continue;
+    }
+    let { text } = listed;
     if (fix && findHidden(text).length > 0) {
       text = escapeHidden(text);
-      writeFileSync(file, text);
+      // No following a link swapped in since the read.
+      const fd = openSync(file, constants.O_WRONLY | constants.O_TRUNC | constants.O_NOFOLLOW);
+      try {
+        writeFileSync(fd, text);
+      } finally {
+        closeSync(fd);
+      }
     }
     for (const hit of findHidden(text)) {
       total += 1;

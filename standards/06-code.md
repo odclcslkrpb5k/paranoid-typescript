@@ -106,7 +106,10 @@ regex is a parse error before any rule runs. This standard's own repository met 
 the text of this rule, and once in the regular expression of the example tool that enforces it.
 
 **Enforced by:** Engineer — a test that scans the repository's source for literal hidden
-characters, and a script that rewrites them as escapes.
+characters, and a script that rewrites them as escapes. The scan reads every text file, whatever
+its name: one that chose files by extension never read the host's own scripts (`dev`, the hooks),
+which run outside every container with the developer's credentials (TC-9). It reads no file through
+a symlink, so the rewrite never writes outside the tree.
 
 **Prior art:** the "Trojan Source" bidirectional-text attacks (CVE-2021-42574) are the hostile
 version of the same blindness.

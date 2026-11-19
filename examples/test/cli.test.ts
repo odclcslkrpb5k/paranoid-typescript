@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -103,5 +103,43 @@ test("hidden-chars finds a literal hidden character, and --fix escapes it", () =
     assert.equal(readFileSync(path.join(dir, "a.ts"), "utf8"), 'export const s = "a\\u00a0b";\n');
   } finally {
     rmSync(dir, { recursive: true });
+  }
+});
+
+test("hidden-chars reads every file, but never through a link, a binary or a nested repository", () => {
+  const rlo = String.fromCodePoint(0x202e);
+  const nbsp = String.fromCharCode(0xa0);
+  const outside = mkdtempSync(path.join(tmpdir(), "outside-"));
+  const dir = repository({ dev: `echo ${rlo}\n`, "keep.md": "fine\n" });
+  try {
+    // Outside the tree: a file a link points at, and a directory that replaces a tracked one.
+    writeFileSync(path.join(outside, "x.md"), `a${nbsp}b\n`);
+    mkdirSync(path.join(dir, "d"));
+    writeFileSync(path.join(dir, "d", "x.md"), "fine\n");
+    run(dir, "git", ["add", "d/x.md"]);
+    rmSync(path.join(dir, "d"), { recursive: true });
+    symlinkSync(outside, path.join(dir, "d"));
+    symlinkSync(path.join(outside, "x.md"), path.join(dir, "link.md"));
+    // An untracked nested repository, which git lists as `nested/`.
+    mkdirSync(path.join(dir, "nested"));
+    writeFileSync(path.join(dir, "nested", "f"), "fine\n");
+    run(path.join(dir, "nested"), "git", ["init", "--quiet"]);
+    writeFileSync(path.join(dir, "image.bin"), Buffer.from([0x00, 0xa0, 0x01]));
+    writeFileSync(path.join(dir, "latin1.txt"), Buffer.from([0x61, 0xa0, 0x62, 0x0a]));
+    const found = run(dir, process.execPath, [path.join(tools, "hidden-chars.ts")]);
+    assert.equal(found.status, 3, found.stderr);
+    assert.deepEqual(found.stdout.trim().split("\n").sort(), [
+      "dev:1: literal U+202E",
+      "latin1.txt: not UTF-8, so it cannot be judged",
+    ]);
+    const fixed = run(dir, process.execPath, [path.join(tools, "hidden-chars.ts"), "--fix"]);
+    assert.equal(fixed.status, 3, fixed.stderr);
+    assert.equal(fixed.stdout.trim(), "latin1.txt: not UTF-8, so it cannot be judged");
+    assert.equal(readFileSync(path.join(dir, "dev"), "utf8"), "echo \\u202e\n");
+    assert.equal(readFileSync(path.join(outside, "x.md"), "utf8"), `a${nbsp}b\n`);
+    assert.deepEqual([...readFileSync(path.join(dir, "latin1.txt"))], [0x61, 0xa0, 0x62, 0x0a]);
+  } finally {
+    rmSync(dir, { recursive: true });
+    rmSync(outside, { recursive: true });
   }
 });
