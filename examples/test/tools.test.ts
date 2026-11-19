@@ -333,6 +333,8 @@ test("vulnerabilities reads waivers, naming each malformed entry", () => {
   const bad = [
     waiver({ until: "" }),
     waiver({ until: "2026-02-30" }),
+    waiver({ until: "2026-13-01" }),
+    waiver({ until: "2026-11-00" }),
     waiver({ reason: " " }),
     waiver({ id: "minimist" }),
     waiver({ name: "" }),
@@ -343,10 +345,12 @@ test("vulnerabilities reads waivers, naming each malformed entry", () => {
     problems: [
       'vulnerability-waivers.json entry 1: no "until" date (YYYY-MM-DD); every waiver expires',
       'vulnerability-waivers.json entry 2: no "until" date (YYYY-MM-DD); every waiver expires',
-      "vulnerability-waivers.json entry 3: no reason",
-      "vulnerability-waivers.json entry 4: no advisory id",
-      "vulnerability-waivers.json entry 5: no package name",
-      "vulnerability-waivers.json entry 6 is not an object",
+      'vulnerability-waivers.json entry 3: no "until" date (YYYY-MM-DD); every waiver expires',
+      'vulnerability-waivers.json entry 4: no "until" date (YYYY-MM-DD); every waiver expires',
+      "vulnerability-waivers.json entry 5: no reason",
+      "vulnerability-waivers.json entry 6: no advisory id",
+      "vulnerability-waivers.json entry 7: no package name",
+      "vulnerability-waivers.json entry 8 is not an object",
     ],
   });
   for (const file of ["", "[]", '{"version":2,"waivers":[]}']) {

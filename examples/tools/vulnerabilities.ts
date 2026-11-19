@@ -84,9 +84,14 @@ export function parseReport(text: string): readonly Finding[] | undefined {
 const ADVISORY = /^[A-Z]+-[A-Za-z0-9-]+$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** A `YYYY-MM-DD` that names a real day: `2026-02-30` is refused, not rolled into March. */
+/**
+ * A `YYYY-MM-DD` that names a real day: `2026-02-30` is refused, not rolled into March, and
+ * `2026-13-01` is refused, not thrown on: an invalid `Date` makes `toISOString` throw.
+ */
 function isDay(text: string): boolean {
-  return DATE.test(text) && new Date(`${text}T00:00:00Z`).toISOString().startsWith(text);
+  if (!DATE.test(text)) return false;
+  const day = new Date(`${text}T00:00:00Z`);
+  return !Number.isNaN(day.getTime()) && day.toISOString().startsWith(text);
 }
 
 /** Reads the waiver file. Problems are returned by entry, so one bad entry hides no other. */
