@@ -22,6 +22,7 @@ import {
 import { allows, judgeLicences, parseAllowList, parseLicence } from "../tools/licences.ts";
 import {
   judgeAges,
+  tarball,
   judgeDeprecation,
   readLockfile,
   readMinAge,
@@ -404,11 +405,26 @@ test("registry fails a version with no publish date, or from outside the registr
   ]);
   const git = { ...LOCKED, resolved: "git+ssh://git@example.com/pkg.git#abc" };
   assert.deepEqual(judgeAges([git], new Map(), NOW, 7), [
-    "@scope/pkg@1.2.3: resolved from git+ssh://git@example.com/pkg.git#abc, not the registry",
+    "@scope/pkg@1.2.3: resolved from git+ssh://git@example.com/pkg.git#abc, not the registry's tarball for it",
   ]);
   assert.deepEqual(judgeAges([{ ...LOCKED, resolved: "" }], new Map(), NOW, 7), [
-    "@scope/pkg@1.2.3: resolved from nowhere, not the registry",
+    "@scope/pkg@1.2.3: resolved from nowhere, not the registry's tarball for it",
   ]);
+});
+
+test("registry fails a registry URL for another version or package than the entry's", () => {
+  const dated = new Map([["@scope/pkg", { "1.2.3": "2020-01-01T00:00:00Z" }]]);
+  assert.equal(tarball("@scope/pkg", "1.2.3"), LOCKED.resolved);
+  assert.equal(tarball("pkg", "1.2.3"), "https://registry.npmjs.org/pkg/-/pkg-1.2.3.tgz");
+  for (const resolved of [
+    "https://registry.npmjs.org/@scope/pkg/-/pkg-9.9.9.tgz",
+    "https://registry.npmjs.org/evil/-/evil-1.2.3.tgz",
+    "https://registry.npmjs.org/@scope/pkg/-/pkg-1.2.3.tgz?x",
+  ]) {
+    assert.deepEqual(judgeAges([{ ...LOCKED, resolved }], dated, NOW, 7), [
+      `@scope/pkg@1.2.3: resolved from ${resolved}, not the registry's tarball for it`,
+    ]);
+  }
 });
 
 test("parseLicence reads SPDX expressions and nothing else", () => {

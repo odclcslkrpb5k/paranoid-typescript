@@ -91,10 +91,12 @@ package needs is run by name, as a reviewed line in the project's setup, and the
 `npm rebuild <package>` exited 0 without running the package's install script. A release age
 guards only versions newly resolved; it does nothing for what the lockfile already holds. So the
 check also reads the registry's publish date of every version in the lockfile and fails on one
-younger than the minimum, or one resolved from anywhere but the registry: the setting is the
-policy, the dates are the evidence. In a public template, `aube audit --fix=update` locked a zod
-release 26 days old under a 30-day minimum. On npm 11.19.1, `min-release-age=7` refused an exact
-pin 4 days old (`notarget`) and resolved a range to the newest version at least 7 days old.
+younger than the minimum, or one resolved from anything but the registry's tarball for that name
+and version: the setting is the policy, the dates are the evidence. A prefix is not enough: an
+entry keyed as an old version whose URL named a newer tarball, of the same package or another, had
+the old version's date judged and passed. In a public template, `aube audit --fix=update` locked a
+zod release 26 days old under a 30-day minimum. On npm 11.19.1, `min-release-age=7` refused an
+exact pin 4 days old (`notarget`) and resolved a range to the newest version at least 7 days old.
 
 The same reading of the registry fails a locked version the registry marks deprecated, and any
 version of a package whose latest version is deprecated: that is the maintainer's own word that it

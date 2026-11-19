@@ -4,8 +4,9 @@
  * - Published more recently than `.npmrc`'s `min-release-age`: npm applies the age only to
  *   versions it resolves anew, so a fix command, a hand-edited lockfile or a version locked before
  *   the setting existed all pass it; the publish dates are the evidence.
- * - Resolved from anywhere but the registry, since it has no publish date to judge (TC-4's
- *   `allow-git=none`).
+ * - Resolved from anything but the registry's own tarball for that entry's name and version. A
+ *   git or other URL has no publish date to judge (TC-4's `allow-git=none`), and a registry URL
+ *   for another version or package would be installed while this one's date was judged.
  * - Deprecated, either the locked version itself or the package as a whole (its latest version):
  *   the maintainer's own word that it should not be used.
  *
@@ -15,6 +16,11 @@ import { readFileSync } from "node:fs";
 
 const REGISTRY = "https://registry.npmjs.org/";
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The one URL the registry serves `name`@`version` from: a scoped tarball drops the scope. */
+export function tarball(name: string, version: string): string {
+  return `${REGISTRY}${name}/-/${name.split("/").at(-1) ?? name}-${version}.tgz`;
+}
 
 export interface Locked {
   readonly name: string;
@@ -124,7 +130,7 @@ export function judgeDeprecation(
 }
 
 /**
- * Each locked version that is too new, has no publish date, or came from outside the registry.
+ * Each locked version that is too new, has no publish date, or came from anything but its tarball.
  * `times` maps a package name to the registry's `time` object (version → ISO date).
  */
 export function judgeAges(
@@ -136,9 +142,10 @@ export function judgeAges(
   const problems: string[] = [];
   for (const { name, version, resolved } of locked) {
     const label = `${name}@${version}`;
-    if (!resolved.startsWith(REGISTRY)) {
+    if (resolved !== tarball(name, version)) {
       problems.push(
-        `${label}: resolved from ${resolved === "" ? "nowhere" : resolved}, not the registry`,
+        `${label}: resolved from ${resolved === "" ? "nowhere" : resolved}, not the registry's ` +
+          `tarball for it`,
       );
       continue;
     }
