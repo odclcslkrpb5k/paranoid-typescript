@@ -436,6 +436,18 @@ test("run without -p, an exported CDPATH still cannot send the scripts' own path
   assert.deepEqual(s.log(s.origin), ["Ship it", "first"]);
 });
 
+test("origin's main is read by its whole name, not by any ref that ends in refs/heads/main", (t) => {
+  const s = Scratch.create(t, { bootstrap: true });
+  // git ls-remote origin refs/heads/main lists this too, so it once read as a main origin had.
+  const tree = s.git(s.origin, "hash-object", "-w", "-t", "tree", "/dev/null");
+  const decoy = s.git(s.origin, "commit-tree", tree, "-m", "decoy");
+  s.git(s.origin, "update-ref", "refs/heads/x/refs/heads/main", decoy);
+  const out = s.ship(s.checked());
+  assert.equal(out.code, 0, out.stderr);
+  assert.deepEqual(s.log(s.origin), ["Ship it"]);
+  assert.equal(s.git(s.origin, "rev-parse", "refs/heads/x/refs/heads/main"), decoy);
+});
+
 test("with no flock installed, the scripts that lock say so, rather than that a lock is held", (t) => {
   const s = Scratch.create(t);
   // Every program on PATH but flock, as on a Mac.

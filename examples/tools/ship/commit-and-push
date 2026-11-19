@@ -76,6 +76,13 @@ fail() {
 }
 die() { fail 1 "$@"; }
 say() { echo "commit-and-push: $*"; }
+# The commit a remote's main holds, or nothing when it has none. ls-remote's pattern matches any ref
+# that ends in it, refs/heads/x/refs/heads/main included, so only the whole name is taken.
+main_at() {
+  local refs
+  refs="$(git ls-remote "$1" refs/heads/main)" || return 1
+  awk -F'\t' '$2 == "refs/heads/main" { print $1 }' <<<"$refs"
+}
 # -E carries this into functions, so a command that fails anywhere is reported as the script's own
 # failure, never read as a refusal.
 trap 'failed=$?; trap - ERR; fail 3 "line $LINENO failed unexpectedly (exit $failed)"' ERR
@@ -128,7 +135,7 @@ else
       die "this clone has no refs/remotes/origin/main; fetch it (a root commit is made only" \
         "from an unborn HEAD, and resumed only when it holds $tree, onto an origin with no main)"
   fi
-  remote_main="$(git ls-remote origin refs/heads/main)" || die "origin's main cannot be read"
+  remote_main="$(main_at origin)" || die "origin's main cannot be read"
   [ -z "$remote_main" ] || die "origin has a main this clone has not fetched as" \
     "refs/remotes/origin/main"
   if [ -n "$start_head" ]; then
@@ -296,7 +303,7 @@ awk -F'\t' -v sha="$short" '$1 == "shipped" && $5 == sha { found = 1 } END { exi
 git push --quiet "$destination" "$sha^{commit}:refs/heads/main" || die "the push failed"
 # Pushing to a URL moves no remote-tracking ref, and a push can report success for something other
 # than what was meant: origin's main is read back, and only then recorded as what origin holds.
-remote_main="$(git ls-remote "$destination" refs/heads/main)" || die "origin's main cannot be read back"
-[ "${remote_main%%$'\t'*}" = "$sha" ] || die "origin's main is ${remote_main%%$'\t'*}, not $sha"
+remote_main="$(main_at "$destination")" || die "origin's main cannot be read back"
+[ "$remote_main" = "$sha" ] || die "origin's main is ${remote_main:-absent}, not $sha"
 git update-ref refs/remotes/origin/main "$sha" || die "refs/remotes/origin/main could not be set"
 say "pushed $(git log --oneline -1 "$sha")"
