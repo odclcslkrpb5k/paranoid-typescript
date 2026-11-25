@@ -45,13 +45,29 @@ an `after` hook throws inside a `describe`, though it exits 1, and when a file's
 throws under `--test-isolation=none` it counts none and exits 0, printing the error only under
 "failing tests". A throw from `afterEach` or `before` failed every test in both modes. In Node,
 compare `process.getActiveResourcesInfo()` before and after each test, and prove the check can fail
-with fixtures that leak on purpose. Judge timers at once — a cleared timer is gone immediately, so
-a settling window only lets a short leak through — and give sockets and servers a short window,
-both to finish closing and to appear: a server is listed only once its `listen` completes. What it
-cannot see: Node reports only handles that keep the event loop alive, so an `unref()`'d timer or
-socket is invisible. What it sees that is not a leak: Node's `fetch` keeps connections open for
-reuse, and a test server in the same process holds its side of each, so a server under test closes
-its connections (`Connection: close`) rather than have the pool read as the test's leak.
+with fixtures that leak on purpose. Judge timeouts at once — a cleared timer is gone immediately,
+so a settling window only lets a short leak through — and give sockets and servers a short window,
+both to finish closing and to appear: a server is listed only once its `listen` completes. Judge
+Immediates after one turn of the event loop: Node's `fetch` schedules one as each response
+completes, so over a kept-alive connection a test whose last act is a request ended with
+`Immediate (+1)` pending (Node 24.22.0 and 26.13.0), which gave 190 false failures in one suite of
+604 tests. One turn still fails an Immediate that schedules itself again. What it cannot see: Node
+reports only handles that keep the event loop alive, so an `unref()`'d timer or socket is
+invisible, and counts are per kind, so in that suite a pool's socket opened during a test was
+usually cancelled out by one of `fetch`'s kept-alive sockets closing. What it sees that is not a
+leak: Node's `fetch` keeps connections open for reuse, and a test server in the same process holds
+its side of each, so a server under test closes its connections (`Connection: close`) rather than
+have the pool read as the test's leak.
+
+Open each pool in `before`, with a first query, so its timers are in every test's baseline. A pool
+that connects lazily starts them in whichever test first uses it: postgres.js 3.4.9 starts a
+30-to-60-minute `setTimeout` per connection (`max_lifetime`), read as that test's `Timeout` leak,
+and the check then fails a file that forgets. A test that reserves connections gets a pool of its
+own, ended in `finally`. A meta-test that starts `node --test` on a fixture removes
+`NODE_TEST_CONTEXT` from the child's environment: inherited, it made the child run nothing and exit
+0 with a failing fixture (Node 24.22.0 and 26.13.0). Remove `FORCE_COLOR` too, which the runner
+sets under a terminal, and set `NO_COLOR=1`, or its escapes break the patterns matched against the
+output.
 
 **Why:** a leaked handle is usually a missing `await` or a missing `finally`, and in production it
 is a slow resource leak or a hang on shutdown. Neither `node:test` nor Vitest fails an individual

@@ -40,10 +40,17 @@ test("every test file registers the leak check", () => {
 /** Runs one fixture under its own test runner and returns what it printed and how it ended. */
 function runFixture(file: string): { readonly status: number | null; readonly stdout: string } {
   // A runner started from inside a test inherits NODE_TEST_CONTEXT and reports to its parent
-  // instead of failing on its own, which would make these pass whatever the leak check does.
-  const env = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => key !== "NODE_TEST_CONTEXT"),
-  );
+  // instead of failing on its own, which would make these pass whatever the leak check does. Under
+  // a terminal it also inherits FORCE_COLOR, which colours the summary lines (`ℹ pass 1`): nothing
+  // here matches those, but a pattern over one would silently stop matching.
+  const env = {
+    ...Object.fromEntries(
+      Object.entries(process.env).filter(
+        ([key]) => key !== "NODE_TEST_CONTEXT" && key !== "FORCE_COLOR",
+      ),
+    ),
+    NO_COLOR: "1",
+  };
   const run = spawnSync(process.execPath, ["--test", "--test-reporter=spec", file], {
     encoding: "utf8",
     env,
@@ -68,6 +75,14 @@ test("the leak check fails a test that leaves a server listening", () => {
   const run = runFixture("test/fixtures/leaky/leaks-a-server.ts");
   assert.notEqual(run.status, 0);
   assert.match(run.stdout, /left resources open: TCPServerWrap/);
+});
+
+test("the leak check fails an Immediate that outlives one turn, and passes one that does not", () => {
+  const run = runFixture("test/fixtures/leaky/leaks-an-immediate.ts");
+  assert.notEqual(run.status, 0);
+  assert.match(run.stdout, /left timers pending: Immediate/);
+  const once = runFixture("test/fixtures/clean/one-immediate.ts");
+  assert.equal(once.status, 0, once.stdout);
 });
 
 test("no source file holds a literal hidden character (CD-7)", () => {

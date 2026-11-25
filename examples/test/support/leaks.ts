@@ -3,14 +3,18 @@
  * registers the hooks for every test in the importing file; a test in `meta.test.ts` checks that
  * every test file does import it.
  *
- * It compares the kinds of active resources Node reports before and after each test. Timers are
+ * It compares the kinds of active resources Node reports before and after each test. Timeouts are
  * judged at once: a cleared timer is gone immediately, so one still listed is a leak, however soon
- * it would fire. Sockets and servers that are already closing need a few turns of the event loop to
- * go, so for them it waits up to `SETTLE_MS` for the counts to come back down.
+ * it would fire. Immediates are judged one turn later: Node's `fetch` schedules one as each
+ * response completes, so a test whose last act is a request ends with one pending through no fault
+ * of its own. An Immediate that schedules itself again is still listed after that turn. Sockets and
+ * servers that are already closing need a few turns of the event loop to go, so for them it waits up
+ * to `SETTLE_MS` for the counts to come back down.
  *
  * Limits: Node reports only handles that keep the event loop alive, so an `unref()`'d timer or
  * socket is invisible here; a handle that appears more than a few milliseconds after its test ends
- * is missed; and counts are per kind, so a resource closing and a new one of the same kind leaking
+ * is missed; an Immediate scheduled once fires within the allowed turn, so it passes; and counts
+ * are per kind, so a resource closing and a new one of the same kind leaking
  * in the same test cancel out. Review covers these.
  */
 import assert from "node:assert/strict";
@@ -37,12 +41,18 @@ beforeEach(() => {
   before = counts();
 });
 
-/** Kinds that disappear the moment they are cleared, so they get no settling window. */
-const TIMERS = new Set(["Timeout", "Immediate"]);
+/** The leaks of one kind, judged now. */
+function leakedOf(kind: string): string[] {
+  return leakedSince(before).filter((entry) => entry.split(" ")[0] === kind);
+}
 
 afterEach(async () => {
-  const timers = leakedSince(before).filter((entry) => TIMERS.has(entry.split(" ")[0] ?? ""));
-  assert.deepEqual(timers, [], `the test left timers pending: ${timers.join(", ")}`);
+  const timeouts = leakedOf("Timeout");
+  assert.deepEqual(timeouts, [], `the test left timers pending: ${timeouts.join(", ")}`);
+  // One turn, for the Immediate fetch leaves as a response completes; this one has run by then.
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  const immediates = leakedOf("Immediate");
+  assert.deepEqual(immediates, [], `the test left timers pending: ${immediates.join(", ")}`);
   // Some handles appear only once an operation started in the test completes (a server is listed
   // after its `listen` finishes), so a little time passes before anything else is judged.
   await sleep(10);
