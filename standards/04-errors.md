@@ -144,6 +144,14 @@ runtime that writes it earlier fails the test instead of dropping those frames. 
 after `.stack` was read leaves the old message's lines under a header that still matches, so code
 never assigns `message` to an error once its stack has been read.
 
+A framework may catch a throw before the catch-all sees it. In Hono (4.13.23), a thrown `Error`
+stops at the layer that threw: the framework passes it to its error handler, answers 500, and
+sets `c.error`, so an outer middleware's `try { await next() } catch` never runs for it; only a
+throw that is not an `Error` reaches that `catch`. A catch-all written as middleware reads the
+framework's error slot after `next()` and keeps the `catch` for the rest. The framework's default
+handler is replaced too: Hono's prints the whole error object. A test throws an `Error` from a
+handler and asserts the catch-all recorded its class.
+
 **Why:** the first draft of one conversion deleted every catch-all, reading "returns a `Result`" as
 "never throws". Review found a bug would then leave no record and could never raise the alert. A
 foreign error can carry a secret: a database driver that parses its connection string with
@@ -153,7 +161,9 @@ but the error carried the string as `input`, and printing the object showed it (
 of `"bad value: hunter2\n    at secret (hunter2:1:1)"` made the first line of its stack that begins
 `at` the forged one, on Node 26.13.0 and Deno 2.9.6. On both, an error whose name and message
 were set before its stack was first read began `DbError: second`; one whose message was cut to
-`"x"` after a read kept the forged frame under the header `Error: x`.
+`"x"` after a read kept the forged frame under the header `Error: x`. One service's catch-all,
+written as `try { await next() } catch` in Hono, recorded every crash as a bare 500 with no class
+from the day it was written.
 
 **Enforced by:** Engineer — the lint rule in ER-3 permits `catch` only in adapters and in functions
 with the catch-all suffix. Administer that each entry point has one. Missing Engineer control: a
