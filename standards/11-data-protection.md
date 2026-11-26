@@ -41,10 +41,12 @@ A logger whose field types admit no free text does not keep free text out by its
 TypeScript checks excess properties only on an object literal (6.0.3 and 7.0.2), so
 `const f = { backend, name }; log("x", f)` compiles, and a logger that spreads its fields sends
 `name`, and can overwrite its own `event` key. The logger copies only the declared keys, from a
-table typed `{ readonly [K in keyof Fields]-?: true }` so that a key left out fails to compile,
-and writes its own keys last. Its test passes a variable holding an extra key: a
-`@ts-expect-error` test written as a literal passes either way. The same holds for any alert,
-notification or telemetry payload built by spreading.
+table typed `{ readonly [K in keyof Fields]-?: true }` so that a key left out fails to compile, and
+writes its own keys last. Types do not reach run time either: a field declared a number can arrive
+as a string from an untyped SQL row. So the logger writes a string only in a field whose declared
+type gives it a shape (a closed set, a pattern it checks) and withholds any other string. Its test
+passes a variable holding an extra key: a `@ts-expect-error` test written as a literal passes
+either way. The same holds for any alert, notification or telemetry payload built by spreading.
 
 An event name typed `<E extends string>` is held to literals by
 `{} extends Record<E, true> ? never : E`, which refuses `string` and every template pattern and
