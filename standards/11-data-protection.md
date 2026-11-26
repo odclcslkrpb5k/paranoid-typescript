@@ -82,7 +82,10 @@ Some cannot move: a browser's `EventSource` cannot set a header, an identity pro
 token in the query string, some bot APIs put the token in the path. For each, every place the URL
 can be written down removes the credential:
 - the reverse proxy, which may log the URI of a request it could not complete even with no access
-  log configured (Caddy: a `log` filter deleting the query parameter);
+  log configured. In Caddy a site's `log` configures only its access log; the error log, which
+  writes the URI and headers of every request answered with a 5xx, goes through the default
+  logger unfiltered. The filter deleting the parameter goes on `log default` in the global
+  options, and the site gets a bare `log`, which sends its access entries through that logger;
 - the service's own errors: some runtimes' `fetch` errors quote the full URL (Deno's do; Node's
   usually name only host and port, but do not rely on it), so an error from such a call is rebuilt
   from the status and the answer, never from the underlying error. Masking is not enough: an echo
@@ -91,13 +94,17 @@ can be written down removes the credential:
   served with `Referrer-Policy: no-referrer`.
 
 Prove it by grepping the proxy's and the service's output for a real token after an aborted request
-and an unreachable upstream. Two traps make that proof vacuous: a runtime may refuse a blocked port
-before connecting, with no URL in its message (take a free port from a listener you open and
-close); and `String(e)` and `e.message` omit the `cause` that quotes the URL.
+and an unreachable upstream. Three traps make that proof vacuous: a runtime may refuse a blocked
+port before connecting, with no URL in its message (take a free port from a listener you open and
+close); `String(e)` and `e.message` omit the `cause` that quotes the URL; and a proxy may log a 4xx
+below its default level (Caddy does), so the token is sent while the upstream is down.
 
 **Why:** a URL is copied into logs, histories and referrers by software that treats it as an
 address. One service's first deployment had no access log and still wrote browser stream tokens
-into its proxy's log on every closed tab.
+into its proxy's log on every closed tab. Another filtered its site's log and still wrote every
+token sent during a deploy's restart window, when each request was a 502: on Caddy 2.11.4 and
+2.11.7 a token in the query of a request to a dead upstream appeared once, in the error log, with
+the filter only on the site, and not at all with it on `log default`.
 
 **Enforced by:** Engineer — a contract test holding the proxy's filter to the parameter names the
 code reads, and transport tests proving an unreachable upstream's error omits the token.
