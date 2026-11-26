@@ -46,6 +46,13 @@ and writes its own keys last. Its test passes a variable holding an extra key: a
 `@ts-expect-error` test written as a literal passes either way. The same holds for any alert,
 notification or telemetry payload built by spreading.
 
+An event name typed `<E extends string>` is held to literals by
+`{} extends Record<E, true> ? never : E`, which refuses `string` and every template pattern and
+accepts any union of literals. The common `string extends E ? never : E` does not: a template built
+from a `string` infers as the pattern `` `a.${string}` ``, which it lets through (TypeScript 6.0.3
+and 7.0.2). The test's interpolated value is typed `string`: built from a `const` literal, the
+template is a literal too, and the test passes under either guard.
+
 **Why:** logs and alerts travel further than the data's own store, to people and systems with no
 right to it. URLs carried account numbers into one service's error messages. Another built a date
 from its own records with a library constructor whose message quotes the text it refuses; its work
