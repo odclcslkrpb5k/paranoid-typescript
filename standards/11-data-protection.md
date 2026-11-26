@@ -91,7 +91,10 @@ can be written down removes the credential:
   from the status and the answer, never from the underlying error. Masking is not enough: an echo
   carries the token percent-encoded or JSON-escaped, in shapes no mask knows;
 - the browser: the page strips a returned token from the address before anything else runs, and is
-  served with `Referrer-Policy: no-referrer`.
+  served with `Referrer-Policy: no-referrer`. A test reads that header from the page as served
+  through a live upstream: in Caddy, a site-wide `header` with no matcher runs after a path's own
+  and overwrites it, so a site-wide value is given as a default (`?Referrer-Policy`); and Caddy's
+  own error answer carries neither (SV-32), so a test against a dead upstream sees nothing.
 
 Prove it by grepping the proxy's and the service's output for a real token after an aborted request
 and an unreachable upstream. Three traps make that proof vacuous: a runtime may refuse a blocked
