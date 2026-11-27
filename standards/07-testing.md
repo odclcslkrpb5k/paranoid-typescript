@@ -59,15 +59,17 @@ leak: Node's `fetch` keeps connections open for reuse, and a test server in the 
 its side of each, so a server under test closes its connections (`Connection: close`) rather than
 have the pool read as the test's leak.
 
-Open each pool in `before`, with a first query, so its timers are in every test's baseline. A pool
-that connects lazily starts them in whichever test first uses it: postgres.js 3.4.9 starts a
+Open every connection a pool may hold in `before`, so their timers are in every test's baseline. A
+pool that connects lazily starts them in whichever test first uses it: postgres.js 3.4.9 starts a
 30-to-60-minute `setTimeout` per connection (`max_lifetime`), read as that test's `Timeout` leak,
-and the check then fails a file that forgets. A test that reserves connections gets a pool of its
-own, ended in `finally`. A meta-test that starts `node --test` on a fixture removes
-`NODE_TEST_CONTEXT` from the child's environment: inherited, it made the child run nothing and exit
-0 with a failing fixture (Node 24.22.0 and 26.13.0). Remove `FORCE_COLOR` too, which the runner
-sets under a terminal, and set `NO_COLOR=1`, or its escapes break the patterns matched against the
-output.
+and the check then fails a file that forgets. One first query is not enough: the driver takes an
+idle connection, then one not yet opened, and a busy one only after both, so two queries in flight
+at once open a second connection mid-test. Reserve `max` connections together and release them all.
+A test that reserves connections gets a pool of its own, ended in `finally`. A meta-test that
+starts `node --test` on a fixture removes `NODE_TEST_CONTEXT` from the child's environment:
+inherited, it made the child run nothing and exit 0 with a failing fixture (Node 24.22.0 and
+26.13.0). Remove `FORCE_COLOR` too, which the runner sets under a terminal, and set `NO_COLOR=1`,
+or its escapes break the patterns matched against the output.
 
 **Why:** a leaked handle is usually a missing `await` or a missing `finally`, and in production it
 is a slow resource leak or a hang on shutdown. Neither `node:test` nor Vitest fails an individual
