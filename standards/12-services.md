@@ -342,6 +342,12 @@ What "deadline" means depends on what the call reaches:
 
 A client's built-in default deadline counts only if a test pins that default.
 
+A deadline turns a slow answer into an unknown outcome: the other side may have done the work and
+answered late. A call that is retried after its deadline passes either carries the other side's
+idempotency key, derived from the item and kept by that side for longer than the retry interval
+(SV-21), or treats the timeout as unknown and settles it by reading the system of record (SV-14),
+never as a failure to repeat.
+
 The unit of work has one deadline of its own: a single abort signal created when the item is taken,
 passed to every outbound call on its path and to every sleep between attempts, so each attempt runs
 under whichever ends first, its own deadline or the item's. Once it passes, no call starts and no
@@ -374,7 +380,10 @@ adapters with no timeout and a database driver with no statement timeout. Checki
 a time had hidden both the total and the gap. When the single deadline was built, its first draft
 summed exactly to the grace and left nothing for the exit, which only review caught; and the exit
 itself proved unbounded, because the monitoring client's sends had no timeout. The longest of about
-17,000 measured items took 13 seconds, against the 90-second deadline chosen.
+17,000 measured items took 13 seconds, against the 90-second deadline chosen. A mail sender given
+a 10-second deadline released a notice on any failure, to be claimed again an hour later; without
+the vendor's idempotency key, a notice the vendor accepted after the deadline would have gone out
+twice.
 
 **Enforced by:** Engineer, partly: the exit-budget test above, or until the single signal exists, a
 contract test that computes the worst case from the configured retry settings and compares it with
