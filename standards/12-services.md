@@ -394,6 +394,16 @@ the two HTTP adapters, but not the database driver, whose bound is set on the se
 statement, where no call site shows it. Lint refuses `AbortSignal.timeout` and `AbortSignal.any` in
 source, and a test asserts an attempt leaves no listener on the caller's signal.
 
+A deadline test against a loopback server that never answers can only hang when the deadline is
+broken: the open connection keeps the file's process alive past the runner's per-test timeout, and
+a `finally` after the call never runs. On Node 26.13.0, with the signal removed, the run never
+ended, and its summary when interrupted counted no failure. Something outside the call closes the
+server's connections (`server.closeAllConnections()`): a backstop timer in the test, which fails a
+broken deadline in seconds with a network error the test tells apart from the deadline's; or an
+`after` hook, which runs only once the runner's per-test timeout cancels the test, and never if no
+timeout is set (`node:test` sets none). With the example's deadline removed, its `after` hook ended
+the file at the 30-second test timeout, and the mutant was killed.
+
 **Example:** [`src/adapters/http.ts`](../examples/src/adapters/http.ts).
 
 ### SV-21 (SHOULD) Retry only what is transient and safe to repeat, a bounded number of times, with exponential backoff and jitter; use the other side's idempotency key wherever it offers one.
